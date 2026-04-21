@@ -1,0 +1,1019 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OptionsDesk Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0a;--panel:#111111;--border:#1e1e1e;--border2:#2a2a2a;
+  --accent:#ffcc00;--accent-dim:#b38f00;
+  --green:#00c853;--red:#f44336;--blue:#2196f3;--orange:#ff9800;
+  --text:#e0e0e0;--text-dim:#888;--text-muted:#555;
+  --sidebar-w:200px;--nav-h:52px;
+}
+body{font-family:'JetBrains Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;font-size:13px}
+a{color:var(--accent);text-decoration:none}
+input,select,button{font-family:inherit;font-size:13px}
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+/* ── Login ── */
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)}
+.login-box{background:var(--panel);border:1px solid var(--border);padding:40px;width:360px;border-radius:4px}
+.login-logo{text-align:center;margin-bottom:32px}
+.login-logo .icon{font-size:36px;display:block;margin-bottom:8px}
+.login-logo h1{color:var(--accent);font-size:18px;letter-spacing:2px;font-weight:700}
+.login-logo p{color:var(--text-dim);font-size:11px;margin-top:4px;letter-spacing:1px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;color:var(--text-dim);font-size:11px;letter-spacing:1px;margin-bottom:6px;text-transform:uppercase}
+.form-group input{width:100%;background:#1a1a1a;border:1px solid var(--border2);color:var(--text);padding:10px 12px;border-radius:3px;outline:none;transition:border-color .2s}
+.form-group input:focus{border-color:var(--accent)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border:none;border-radius:3px;cursor:pointer;font-weight:600;letter-spacing:.5px;transition:all .15s;white-space:nowrap}
+.btn-primary{background:var(--accent);color:#000}
+.btn-primary:hover{background:#ffd633}
+.btn-danger{background:var(--red);color:#fff}
+.btn-danger:hover{background:#e53935}
+.btn-ghost{background:transparent;color:var(--text-dim);border:1px solid var(--border2)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-full{width:100%;justify-content:center;padding:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+#login-error{color:var(--red);font-size:12px;margin-top:12px;text-align:center;min-height:18px}
+/* ── App Layout ── */
+#app{display:none;flex-direction:column;min-height:100vh}
+/* ── Navbar ── */
+.navbar{height:var(--nav-h);background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:16px;position:fixed;top:0;left:0;right:0;z-index:100}
+.navbar-brand{color:var(--accent);font-size:15px;font-weight:700;letter-spacing:1px;flex:1}
+.navbar-clock{color:var(--text-dim);font-size:12px;letter-spacing:.5px}
+/* ── Body Layout ── */
+.app-body{display:flex;margin-top:var(--nav-h);min-height:calc(100vh - var(--nav-h))}
+/* ── Sidebar ── */
+.sidebar{width:var(--sidebar-w);background:var(--panel);border-right:1px solid var(--border);position:fixed;top:var(--nav-h);bottom:0;overflow-y:auto;padding:12px 0}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 18px;cursor:pointer;color:var(--text-dim);transition:all .15s;border-left:3px solid transparent;font-size:12px;letter-spacing:.5px;text-transform:uppercase}
+.nav-item:hover{color:var(--text);background:rgba(255,204,0,.05)}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(255,204,0,.07)}
+.nav-item .nav-icon{font-size:15px;width:18px;text-align:center}
+/* ── Main Content ── */
+.main-content{margin-left:var(--sidebar-w);flex:1;padding:24px;overflow-x:hidden}
+/* ── Section ── */
+.section{display:none}
+.section.active{display:block}
+.section-title{font-size:16px;font-weight:700;color:var(--accent);letter-spacing:1px;margin-bottom:20px;text-transform:uppercase;display:flex;align-items:center;gap:10px}
+/* ── Cards ── */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:20px;margin-bottom:16px}
+.card-title{font-size:11px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;font-weight:600}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat-card{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:16px 20px}
+.stat-label{font-size:10px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+.stat-value{font-size:28px;font-weight:700;color:var(--accent);line-height:1}
+.stat-sub{font-size:11px;color:var(--text-muted);margin-top:4px}
+/* ── Tables ── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:8px 12px;font-size:10px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border);font-weight:600;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text);font-size:12px;vertical-align:middle}
+tr:hover td{background:rgba(255,255,255,.02)}
+tr:last-child td{border-bottom:none}
+/* ── Badges ── */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.badge-green{background:rgba(0,200,83,.15);color:var(--green);border:1px solid rgba(0,200,83,.3)}
+.badge-red{background:rgba(244,67,54,.15);color:var(--red);border:1px solid rgba(244,67,54,.3)}
+.badge-yellow{background:rgba(255,204,0,.15);color:var(--accent);border:1px solid rgba(255,204,0,.3)}
+.badge-blue{background:rgba(33,150,243,.15);color:var(--blue);border:1px solid rgba(33,150,243,.3)}
+.badge-gray{background:rgba(136,136,136,.15);color:var(--text-dim);border:1px solid rgba(136,136,136,.3)}
+/* ── Form elements ── */
+.input{background:#1a1a1a;border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:3px;outline:none;transition:border-color .2s}
+.input:focus{border-color:var(--accent)}
+.input-sm{padding:5px 10px;font-size:12px}
+/* ── Grid helpers ── */
+.row{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.col{flex:1;min-width:0}
+/* ── Loading ── */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-row td{text-align:center;color:var(--text-dim);padding:24px}
+/* ── Toast ── */
+#toast-container{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--panel);border:1px solid var(--border2);padding:12px 16px;border-radius:4px;font-size:12px;min-width:260px;max-width:360px;display:flex;align-items:center;gap:10px;animation:slideIn .2s ease;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+.toast.success{border-left:3px solid var(--green)}
+.toast.error{border-left:3px solid var(--red)}
+.toast.info{border-left:3px solid var(--blue)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+/* ── Credentials table ── */
+.creds-table{background:#0d0d0d;border:1px solid var(--border);border-radius:3px;overflow:hidden;margin-top:12px}
+.creds-table td{font-size:12px;padding:7px 12px;border-bottom:1px solid var(--border)}
+.creds-table tr:last-child td{border-bottom:none}
+.copy-btn{background:transparent;border:1px solid var(--border2);color:var(--text-dim);padding:2px 8px;border-radius:2px;cursor:pointer;font-size:10px;font-family:inherit}
+.copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+/* ── Search bar ── */
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+/* ── Health grid ── */
+.health-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.health-card{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:16px}
+.health-label{font-size:10px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+.health-value{font-size:20px;font-weight:700}
+/* ── Redis key browser ── */
+.pattern-btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.pattern-btn{background:transparent;border:1px solid var(--border2);color:var(--text-dim);padding:4px 10px;border-radius:2px;cursor:pointer;font-size:11px;font-family:inherit;transition:all .15s}
+.pattern-btn:hover{border-color:var(--accent);color:var(--accent)}
+/* ── Divider ── */
+.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
+/* ── Responsive ── */
+@media(max-width:900px){
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .health-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:600px){
+  .sidebar{display:none}
+  .main-content{margin-left:0}
+  .stats-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<!-- ── Toast Container ── -->
+<div id="toast-container"></div>
+
+<!-- ── LOGIN SCREEN ── -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <span class="icon">⚡</span>
+      <h1>OPTIONSDESK</h1>
+      <p>ADMIN PANEL</p>
+    </div>
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="login-user" placeholder="admin" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary btn-full" id="login-btn" onclick="doLogin()">
+      <span id="login-btn-text">ADMIN LOGIN</span>
+    </button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="app">
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-brand">⚡ OPTIONSDESK ADMIN</div>
+    <div class="navbar-clock" id="clock">--:--:-- IST</div>
+    <button class="btn btn-ghost btn-sm" onclick="doLogout()">LOGOUT</button>
+  </nav>
+
+  <div class="app-body">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="nav-item active" onclick="showSection('dashboard')" id="nav-dashboard">
+        <span class="nav-icon">📊</span><span>Dashboard</span>
+      </div>
+      <div class="nav-item" onclick="showSection('users')" id="nav-users">
+        <span class="nav-icon">👥</span><span>Users</span>
+      </div>
+      <div class="nav-item" onclick="showSection('sessions')" id="nav-sessions">
+        <span class="nav-icon">🔑</span><span>Sessions</span>
+      </div>
+      <div class="nav-item" onclick="showSection('health')" id="nav-health">
+        <span class="nav-icon">💚</span><span>Health</span>
+      </div>
+      <div class="nav-item" onclick="showSection('redis')" id="nav-redis">
+        <span class="nav-icon">🗄️</span><span>Redis</span>
+      </div>
+      <div class="nav-item" onclick="showSection('activity')" id="nav-activity">
+        <span class="nav-icon">📈</span><span>Activity</span>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- ── DASHBOARD ── -->
+      <div class="section active" id="section-dashboard">
+        <div class="section-title">📊 Dashboard</div>
+        <div class="stats-grid" id="dash-stats">
+          <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value" id="stat-total-users">—</div></div>
+          <div class="stat-card"><div class="stat-label">Online Now</div><div class="stat-value" id="stat-online">—</div></div>
+          <div class="stat-card"><div class="stat-label">WS Connections</div><div class="stat-value" id="stat-ws">—</div></div>
+          <div class="stat-card"><div class="stat-label">Pipeline</div><div class="stat-value" id="stat-pipeline" style="font-size:16px;padding-top:6px">—</div></div>
+        </div>
+
+        <div class="row">
+          <div class="col">
+            <div class="card">
+              <div class="card-title">Online Users</div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Username</th><th>IP</th><th>Last Seen</th></tr></thead>
+                  <tbody id="online-users-tbody">
+                    <tr class="loading-row"><td colspan="3"><span class="spinner"></span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="card">
+              <div class="card-title">Stock Pipeline</div>
+              <table>
+                <tbody id="pipeline-tbody">
+                  <tr class="loading-row"><td colspan="2"><span class="spinner"></span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card">
+              <div class="card-title">Database Stats</div>
+              <table>
+                <tbody id="db-stats-tbody">
+                  <tr class="loading-row"><td colspan="2"><span class="spinner"></span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Redis Keys</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Category</th><th>Count</th></tr></thead>
+              <tbody id="redis-keys-tbody">
+                <tr class="loading-row"><td colspan="2"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── USERS ── -->
+      <div class="section" id="section-users">
+        <div class="section-title">👥 Users</div>
+
+        <!-- Create Users Panel -->
+        <div class="card">
+          <div class="card-title">Create Users</div>
+          <div class="row" style="align-items:flex-end;gap:10px;flex-wrap:wrap">
+            <div>
+              <label style="display:block;font-size:10px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Count (1-50)</label>
+              <input type="number" id="create-count" class="input input-sm" value="1" min="1" max="50" style="width:80px">
+            </div>
+            <div>
+              <label style="display:block;font-size:10px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Username Prefix (optional)</label>
+              <input type="text" id="create-prefix" class="input input-sm" placeholder="e.g. trader" style="width:160px">
+            </div>
+            <div>
+              <label style="display:block;font-size:10px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Password (optional)</label>
+              <input type="text" id="create-password" class="input input-sm" placeholder="auto-generated" style="width:160px">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="createUsers()" id="create-btn">GENERATE</button>
+          </div>
+          <div id="created-creds" style="display:none;margin-top:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <span style="font-size:11px;color:var(--text-dim)">Generated Credentials</span>
+              <button class="btn btn-ghost btn-sm" onclick="copyAllCreds()">COPY ALL (CSV)</button>
+            </div>
+            <div class="table-wrap">
+              <table class="creds-table">
+                <thead><tr><th>Username</th><th>Password</th><th></th></tr></thead>
+                <tbody id="creds-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Users Table -->
+        <div class="card">
+          <div class="toolbar">
+            <input type="text" id="user-search" class="input input-sm" placeholder="Search username..." style="width:200px" oninput="filterUsers()">
+            <button class="btn btn-ghost btn-sm" onclick="loadUsers()">↻ REFRESH</button>
+            <span id="users-count" style="color:var(--text-dim);font-size:11px;margin-left:auto"></span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Username</th><th>Created At</th><th>Created IP</th>
+                  <th>Status</th><th>Session IP</th><th>Last Seen</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="users-tbody">
+                <tr class="loading-row"><td colspan="7"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SESSIONS ── -->
+      <div class="section" id="section-sessions">
+        <div class="section-title">🔑 Sessions</div>
+        <div class="card">
+          <div class="toolbar">
+            <span style="color:var(--text-dim);font-size:11px" id="sessions-count"></span>
+            <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="kickAll()">⚡ KICK ALL</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadSessions()">↻ REFRESH</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Username</th><th>IP Address</th><th>Last Seen</th><th>Created At</th><th>Expires In</th></tr>
+              </thead>
+              <tbody id="sessions-tbody">
+                <tr class="loading-row"><td colspan="5"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── HEALTH ── -->
+      <div class="section" id="section-health">
+        <div class="section-title">💚 System Health</div>
+        <div class="health-grid" id="health-cards">
+          <div class="health-card">
+            <div class="health-label">Redis</div>
+            <div id="health-redis-badge">—</div>
+            <div style="color:var(--text-dim);font-size:11px;margin-top:6px" id="health-redis-latency"></div>
+          </div>
+          <div class="health-card">
+            <div class="health-label">WebSocket</div>
+            <div class="health-value" id="health-ws">—</div>
+            <div style="color:var(--text-dim);font-size:11px;margin-top:6px">connections</div>
+          </div>
+          <div class="health-card">
+            <div class="health-label">Stock Pipeline</div>
+            <div id="health-pipeline-badge">—</div>
+            <div style="color:var(--text-dim);font-size:11px;margin-top:6px" id="health-pipeline-detail"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Option Chain Freshness</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Symbol</th><th>Cached</th><th>Age</th><th>Status</th></tr></thead>
+              <tbody id="chains-tbody">
+                <tr class="loading-row"><td colspan="4"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div style="color:var(--text-muted);font-size:11px;text-align:right;margin-top:8px" id="health-updated"></div>
+      </div>
+
+      <!-- ── REDIS ── -->
+      <div class="section" id="section-redis">
+        <div class="section-title">🗄️ Redis</div>
+        <div class="card">
+          <div class="card-title">Server Stats</div>
+          <div id="redis-stats-content">
+            <span class="spinner"></span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Key Browser</div>
+          <div class="pattern-btns" id="pattern-btns">
+            <button class="pattern-btn" onclick="setPattern('users:*')">users:*</button>
+            <button class="pattern-btn" onclick="setPattern('session:*')">session:*</button>
+            <button class="pattern-btn" onclick="setPattern('stock:*:features')">stock:*:features</button>
+            <button class="pattern-btn" onclick="setPattern('chain:*')">chain:*</button>
+            <button class="pattern-btn" onclick="setPattern('stocks:*')">stocks:*</button>
+            <button class="pattern-btn" onclick="setPattern('*')">* (all)</button>
+          </div>
+          <div class="toolbar">
+            <input type="text" id="redis-pattern" class="input input-sm" value="*" style="width:240px" placeholder="Redis key pattern">
+            <button class="btn btn-primary btn-sm" onclick="searchRedisKeys()">SEARCH</button>
+            <span id="redis-keys-count" style="color:var(--text-dim);font-size:11px;margin-left:auto"></span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Key</th><th>Type</th><th>TTL (s)</th></tr></thead>
+              <tbody id="redis-keys-tbody-browser">
+                <tr><td colspan="3" style="color:var(--text-muted);text-align:center;padding:20px">Enter a pattern and click SEARCH</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ACTIVITY ── -->
+      <div class="section" id="section-activity">
+        <div class="section-title">📈 Activity</div>
+        <div class="card">
+          <div class="card-title">Users Active in Last Hour</div>
+          <div class="toolbar">
+            <span id="activity-count" style="color:var(--text-dim);font-size:11px"></span>
+            <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="loadActivity()">↻ REFRESH</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Username</th><th>IP</th><th>Last Seen</th></tr></thead>
+              <tbody id="activity-tbody">
+                <tr class="loading-row"><td colspan="3"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const API = '';
+let token = localStorage.getItem('admin_token') || '';
+let allUsers = [];
+let allCreds = [];
+let dashInterval = null;
+let sessionsInterval = null;
+let healthInterval = null;
+
+// ── Init ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  startClock();
+  if (token) {
+    showApp();
+  } else {
+    showLogin();
+  }
+  // Enter key on login
+  document.getElementById('login-pass').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+  document.getElementById('login-user').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+});
+
+// ── Clock ──────────────────────────────────────────────────────────────────
+function startClock() {
+  function tick() {
+    const now = new Date();
+    const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const h = String(ist.getHours()).padStart(2, '0');
+    const m = String(ist.getMinutes()).padStart(2, '0');
+    const s = String(ist.getSeconds()).padStart(2, '0');
+    const el = document.getElementById('clock');
+    if (el) el.textContent = `${h}:${m}:${s} IST`;
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+// ── Auth ───────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const username = document.getElementById('login-user').value.trim();
+  const password = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-error');
+  const btn = document.getElementById('login-btn');
+  const btnText = document.getElementById('login-btn-text');
+
+  if (!username || !password) {
+    errEl.textContent = 'Enter username and password';
+    return;
+  }
+
+  btn.disabled = true;
+  btnText.innerHTML = '<span class="spinner"></span> Authenticating...';
+  errEl.textContent = '';
+
+  try {
+    const res = await fetch(`${API}/admin-api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.detail || 'Login failed';
+      return;
+    }
+    token = data.access_token;
+    localStorage.setItem('admin_token', token);
+    showApp();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = 'ADMIN LOGIN';
+  }
+}
+
+function doLogout() {
+  token = '';
+  localStorage.removeItem('admin_token');
+  clearIntervals();
+  showLogin();
+}
+
+function showLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  showSection('dashboard');
+}
+
+// ── API Helper ─────────────────────────────────────────────────────────────
+async function apiFetch(path, options = {}) {
+  const res = await fetch(`${API}${path}`, {
+    ...options,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    }
+  });
+  if (res.status === 401) {
+    doLogout();
+    throw new Error('Session expired');
+  }
+  return res;
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  const icons = { success: '✓', error: '✗', info: 'ℹ' };
+  el.innerHTML = `<span style="font-size:14px">${icons[type] || 'ℹ'}</span><span>${msg}</span>`;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.style.animation = 'slideIn .2s ease reverse';
+    setTimeout(() => el.remove(), 200);
+  }, 3500);
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function showSection(name) {
+  clearIntervals();
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`section-${name}`).classList.add('active');
+  document.getElementById(`nav-${name}`).classList.add('active');
+
+  switch (name) {
+    case 'dashboard':
+      loadDashboard();
+      dashInterval = setInterval(loadDashboard, 30000);
+      break;
+    case 'users':
+      loadUsers();
+      break;
+    case 'sessions':
+      loadSessions();
+      sessionsInterval = setInterval(loadSessions, 30000);
+      break;
+    case 'health':
+      loadHealth();
+      healthInterval = setInterval(loadHealth, 15000);
+      break;
+    case 'redis':
+      loadRedisStats();
+      break;
+    case 'activity':
+      loadActivity();
+      break;
+  }
+}
+
+function clearIntervals() {
+  if (dashInterval) { clearInterval(dashInterval); dashInterval = null; }
+  if (sessionsInterval) { clearInterval(sessionsInterval); sessionsInterval = null; }
+  if (healthInterval) { clearInterval(healthInterval); healthInterval = null; }
+}
+
+// ── DASHBOARD ──────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const res = await apiFetch('/admin-api/dashboard');
+    const d = await res.json();
+
+    // Stats
+    document.getElementById('stat-total-users').textContent = d.users?.total ?? '—';
+    document.getElementById('stat-online').textContent = d.users?.online ?? '—';
+    document.getElementById('stat-ws').textContent = d.websocket?.connections ?? '—';
+    const pStatus = d.stock_pipeline?.status || 'IDLE';
+    const pEl = document.getElementById('stat-pipeline');
+    pEl.innerHTML = badgeHtml(pStatus, pStatus === 'RUNNING' ? 'green' : pStatus === 'ERROR' ? 'red' : 'gray');
+
+    // Online users
+    const onlineTbody = document.getElementById('online-users-tbody');
+    const onlineList = d.users?.online_list || [];
+    if (onlineList.length === 0) {
+      onlineTbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-muted);text-align:center;padding:16px">No users online</td></tr>';
+    } else {
+      onlineTbody.innerHTML = onlineList.map(u => `
+        <tr>
+          <td><span style="color:var(--accent)">${esc(u.username)}</span></td>
+          <td style="color:var(--text-dim)">${esc(u.session_ip)}</td>
+          <td style="color:var(--text-dim)">${esc(u.last_seen)}</td>
+        </tr>`).join('');
+    }
+
+    // Pipeline
+    const pl = d.stock_pipeline || {};
+    document.getElementById('pipeline-tbody').innerHTML = `
+      <tr><td style="color:var(--text-dim);width:120px">Status</td><td>${badgeHtml(pl.status || 'IDLE', pl.status === 'RUNNING' ? 'green' : pl.status === 'ERROR' ? 'red' : 'gray')}</td></tr>
+      <tr><td style="color:var(--text-dim)">Stocks</td><td>${pl.total_stocks ?? '—'}</td></tr>
+      <tr><td style="color:var(--text-dim)">Buy Signals</td><td style="color:var(--green)">${pl.buy_signals ?? '—'}</td></tr>
+      <tr><td style="color:var(--text-dim)">Computed At</td><td style="color:var(--text-dim)">${esc(pl.computed_at || '—')}</td></tr>
+      <tr><td style="color:var(--text-dim)">Detail</td><td style="color:var(--text-dim);font-size:11px">${esc(pl.detail || '—')}</td></tr>
+    `;
+
+    // DB stats
+    const db = d.database || {};
+    const dbRows = Object.entries(db).map(([k, v]) =>
+      `<tr><td style="color:var(--text-dim);width:160px">${esc(k.replace(/_/g,' '))}</td><td>${v ?? '—'}</td></tr>`
+    ).join('');
+    document.getElementById('db-stats-tbody').innerHTML = dbRows || '<tr><td colspan="2" style="color:var(--text-muted)">No data</td></tr>';
+
+    // Redis keys
+    const rk = d.redis_keys || {};
+    const labels = {
+      stock_features: 'Stock Features',
+      mc_horizons: 'MC Horizons',
+      option_chains: 'Option Chains',
+      active_sessions: 'Active Sessions',
+      total_users: 'Total Users'
+    };
+    document.getElementById('redis-keys-tbody').innerHTML = Object.entries(rk).map(([k, v]) =>
+      `<tr><td style="color:var(--text-dim)">${labels[k] || k}</td><td style="color:var(--accent)">${v}</td></tr>`
+    ).join('') || '<tr><td colspan="2" style="color:var(--text-muted)">No data</td></tr>';
+
+  } catch (e) {
+    if (e.message !== 'Session expired') toast('Dashboard load failed: ' + e.message, 'error');
+  }
+}
+// ── USERS ──────────────────────────────────────────────────────────────────
+async function loadUsers() {
+  document.getElementById('users-tbody').innerHTML = '<tr class="loading-row"><td colspan="7"><span class="spinner"></span></td></tr>';
+  try {
+    const res = await apiFetch('/admin-api/users');
+    const d = await res.json();
+    allUsers = d.users || [];
+    document.getElementById('users-count').textContent = `${allUsers.length} users`;
+    renderUsers(allUsers);
+  } catch (e) {
+    if (e.message !== 'Session expired') toast('Failed to load users', 'error');
+  }
+}
+
+function filterUsers() {
+  const q = document.getElementById('user-search').value.toLowerCase();
+  const filtered = q ? allUsers.filter(u => u.username.toLowerCase().includes(q)) : allUsers;
+  renderUsers(filtered);
+}
+
+function renderUsers(users) {
+  const tbody = document.getElementById('users-tbody');
+  if (users.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted);text-align:center;padding:20px">No users found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = users.map(u => `
+    <tr>
+      <td><span style="color:var(--accent);font-weight:600">${esc(u.username)}</span></td>
+      <td style="color:var(--text-dim);font-size:11px">${esc(u.created_at)}</td>
+      <td style="color:var(--text-dim);font-size:11px">${esc(u.created_ip)}</td>
+      <td>${badgeHtml(u.online ? 'ONLINE' : 'OFFLINE', u.online ? 'green' : 'red')}</td>
+      <td style="color:var(--text-dim);font-size:11px">${esc(u.session_ip)}</td>
+      <td style="color:var(--text-dim);font-size:11px">${esc(u.last_seen)}</td>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${u.online ? `<button class="btn btn-ghost btn-sm" onclick="kickUser('${esc(u.username)}')">KICK</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="resetPwd('${esc(u.username)}')">RESET PWD</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteUser('${esc(u.username)}')">DELETE</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+async function createUsers() {
+  const count = parseInt(document.getElementById('create-count').value) || 1;
+  const prefix = document.getElementById('create-prefix').value.trim();
+  const password = document.getElementById('create-password').value.trim();
+  const btn = document.getElementById('create-btn');
+
+  if (count < 1 || count > 50) { toast('Count must be 1-50', 'error'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    const body = { count };
+    if (prefix) body.username = prefix;
+    if (password) body.password = password;
+
+    const res = await apiFetch('/admin-api/users/create', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    const d = await res.json();
+
+    if (!res.ok) { toast(d.detail || 'Create failed', 'error'); return; }
+
+    allCreds = d.created || [];
+    toast(`Created ${d.count} user(s)`, 'success');
+
+    if (d.errors && d.errors.length > 0) {
+      toast(`Errors: ${d.errors.join(', ')}`, 'error');
+    }
+
+    // Show credentials
+    const credsDiv = document.getElementById('created-creds');
+    const credsTbody = document.getElementById('creds-tbody');
+    credsDiv.style.display = 'block';
+    credsTbody.innerHTML = allCreds.map((c, i) => `
+      <tr>
+        <td style="color:var(--accent)">${esc(c.username)}</td>
+        <td style="font-family:monospace">${esc(c.password)}</td>
+        <td><button class="copy-btn" onclick="copyCred(${i})">COPY</button></td>
+      </tr>`).join('');
+
+    loadUsers();
+  } catch (e) {
+    if (e.message !== 'Session expired') toast('Create failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'GENERATE';
+  }
+}
+
+function copyCred(i) {
+  const c = allCreds[i];
+  navigator.clipboard.writeText(`${c.username}\t${c.password}`).then(() => toast('Copied!', 'success'));
+}
+
+function copyAllCreds() {
+  if (!allCreds.length) return;
+  const csv = 'username,password\n' + allCreds.map(c => `${c.username},${c.password}`).join('\n');
+  navigator.clipboard.writeText(csv).then(() => toast('All credentials copied as CSV', 'success'));
+}
+
+async function kickUser(username) {
+  if (!confirm(`Kick user "${username}"? Their session will be deleted.`)) return;
+  try {
+    const res = await apiFetch(`/admin-api/users/${encodeURIComponent(username)}/kick`, { method: 'POST' });
+    const d = await res.json();
+    toast(`${username}: ${d.status}`, 'success');
+    loadUsers();
+  } catch (e) {
+    if (e.message !== 'Session expired') toast('Kick failed', 'error');
+  }
+}
+
+async function resetPwd(username) {
+  if (!confirm(`Reset password for "${username}"? They will be logged out.`)) return;
+  try {
+    const res = await apiFetch(`/admin-api/users/${encodeURIComponent(username)}/reset-password`, { method: 'POST' });
+    const d = await res.json();
+    if (!res.ok) { toast(d.detail || 'Reset failed', 'error'); return; }
+    const msg = `New password for ${username}: ${d.new_password}`;
+    navigator.clipboard.writeText(d.new_password).catch(() => {});
+    toast(msg, 'success');
+    // Show in a prompt for easy copy
+    prompt(`New password for ${username} (copied to clipboard):`, d.new_password);
+    loadUsers();
+  } catch (e) {
+    if (e.message !== 'Session expired') toast('Reset failed', 'error');
+  }
+}
+
+async function deleteUser(username) {
+  if (!confirm(`DELETE user "${username}"? This cannot be undone.`)) return;
+  try {
+    const res = await apiFetch(`/admin-api/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
+    const d = await res.json();
+    if (!res.ok) { toast(d.detail || 'Delete failed', 'error'); return; }
+    toast(`User ${username} deleted`, 'success');
+    loadUsers();
+  } catch (e) {
+    if (e.message !== 'Session expired') toast('Delete failed', 'error');
+  }
+}
+
+// ── SESSIONS ───────────────────────────────────────────────────────────────
+async function loadSessions() {
+  document.getElementById('sessions-tbody').innerHTML = '<tr class="loading-row"><td colspan="5"><span class="spinner"></span></td></tr>';
+  try {
+    const res = await apiFetch('/admin-api/sessions');
+    const d = await res.json();
+    const sessions = d.sessions || [];
+    document.getElementById('sessions-count').textContent = `${sessions.length} active session(s)`;
+    const tbody = document.getElementById('sessions-tbody');
+    if (sessions.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:20px">No active sessions</td></tr>';
+      return;
+    }
+    tbody.innerHTML = sessions.map(s => `
+      <tr>
+        <td style="color:var(--accent)">${esc(s.username)}</td>
+        <td style="color:var(--text-dim)">${esc(s.ip)}</td>
+        <td style="color:var(--text-dim)">${esc(s.last_seen)}</td>
+        <td style="color:var(--text-dim)">${esc(s.created_at)}</td>
+        <td>${expiryBadge(s.expires_in_min)}</td>
+      </tr>`).join('');
+  } catch (e) {
+    if (e.message !== 'Session expired') toast('Failed to load sessions', 'error');
+  }
+}
+
+function expiryBadge(mins) {
+  if (mins <= 0) return badgeHtml('EXPIRED', 'red');
+  if (mins < 30) return badgeHtml(`${mins}m`, 'yellow');
+  return badgeHtml(`${mins}m`, 'green');
+}
+
+async function kickAll() {
+  if (!confirm('KICK ALL USERS? This will delete all active sessions immediately.')) return;
+  try {
+    const res = await apiFetch('/admin-api/sessions/all', { method: 'DELETE' });
+    const d = await res.json();
+    toast(`Kicked ${d.count} session(s)`, 'success');
+    loadSessions();
+  } catch (e) {
+    if (e.message !== 'Session expired') toast('Kick all failed', 'error');
+  }
+}
+
+// ── HEALTH ─────────────────────────────────────────────────────────────────
+async function loadHealth() {
+  try {
+    const res = await apiFetch('/admin-api/health');
+    const d = await res.json();
+
+    // Redis
+    const redisOk = d.redis?.ok;
+    document.getElementById('health-redis-badge').innerHTML = badgeHtml(
+      redisOk ? 'OK' : 'ERROR', redisOk ? 'green' : 'red'
+    );
+    document.getElementById('health-redis-latency').textContent =
+      redisOk ? `${d.redis.latency_ms}ms latency` : 'Connection failed';
+
+    // WS
+    document.getElementById('health-ws').textContent = d.websocket?.connections ?? '—';
+
+    // Pipeline
+    const pl = d.stock_pipeline || {};
+    document.getElementById('health-pipeline-badge').innerHTML = badgeHtml(
+      pl.status || 'IDLE',
+      pl.status === 'RUNNING' ? 'green' : pl.status === 'ERROR' ? 'red' : 'gray'
+    );
+    document.getElementById('health-pipeline-detail').textContent = pl.detail || '';
+
+    // Option chains
+    const chains = d.option_chains || {};
+    const tbody = document.getElementById('chains-tbody');
+    tbody.innerHTML = Object.entries(chains).map(([sym, info]) => {
+      const age = info.age_seconds;
+      let color = 'var(--green)';
+      let statusBadge = badgeHtml('FRESH', 'green');
+      if (!info.cached) {
+        color = 'var(--red)';
+        statusBadge = badgeHtml('NOT CACHED', 'red');
+      } else if (age > 300) {
+        color = 'var(--red)';
+        statusBadge = badgeHtml('STALE', 'red');
+      } else if (age > 60) {
+        color = 'var(--orange)';
+        statusBadge = badgeHtml('AGING', 'yellow');
+      }
+      return `<tr>
+        <td style="color:var(--accent);font-weight:600">${esc(sym)}</td>
+        <td>${info.cached ? badgeHtml('YES', 'green') : badgeHtml('NO', 'red')}</td>
+        <td style="color:${color}">${info.cached ? age + 's' : '—'}</td>
+        <td>${statusBadge}</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('health-updated').textContent = `Last updated: ${d.timestamp || ''}`;
+  } catch (e) {
+    if (e.message !== 'Session expired') toast('Health check failed', 'error');
+  }
+}
+
+// ── REDIS ──────────────────────────────────────────────────────────────────
+async function loadRedisStats() {
+  const el = document.getElementById('redis-stats-content');
+  el.innerHTML = '<span class="spinner"></span>';
+  try {
+    const res = await apiFetch('/admin-api/redis/stats');
+    const d = await res.json();
+    const hits = d.keyspace_hits || 0;
+    const misses = d.keyspace_misses || 0;
+    const hitRate = hits + misses > 0 ? ((hits / (hits + misses)) * 100).toFixed(1) : '—';
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+        ${statMini('Version', d.version || '—')}
+        ${statMini('Uptime', (d.uptime_days ?? '—') + ' days')}
+        ${statMini('Memory', d.used_memory_human || '—')}
+        ${statMini('Peak Memory', d.peak_memory_human || '—')}
+        ${statMini('Clients', d.connected_clients ?? '—')}
+        ${statMini('Hit Rate', hitRate + '%')}
+        ${statMini('Total Cmds', fmtNum(d.total_commands))}
+        ${statMini('Evicted Keys', fmtNum(d.evicted_keys))}
+        ${statMini('Expired Keys', fmtNum(d.expired_keys))}
+      </div>`;
+  } catch (e) {
+    el.innerHTML = '<span style="color:var(--red)">Failed to load Redis stats</span>';
+    if (e.message !== 'Session expired') toast('Redis stats failed', 'error');
+  }
+}
+
+function statMini(label, value) {
+  return `<div style="background:#0d0d0d;border:1px solid var(--border);border-radius:3px;padding:12px">
+    <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">${label}</div>
+    <div style="font-size:16px;font-weight:700;color:var(--accent)">${value}</div>
+  </div>`;
+}
+
+function setPattern(p) {
+  document.getElementById('redis-pattern').value = p;
+  searchRedisKeys();
+}
+
+async function searchRedisKeys() {
+  const pattern = document.getElementById('redis-pattern').value.trim() || '*';
+  const tbody = document.getElementById('redis-keys-tbody-browser');
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="3"><span class="spinner"></span></td></tr>';
+  try {
+    const res = await apiFetch(`/admin-api/redis/keys?pattern=${encodeURIComponent(pattern)}&limit=200`);
+    const d = await res.json();
+    const keys = d.keys || [];
+    document.getElementById('redis-keys-count').textContent = `${keys.length} key(s)`;
+    if (keys.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-muted);text-align:center;padding:20px">No keys found</td></tr>';
+      return;
+    }
+    tbody.innerHTML = keys.map(k => `
+      <tr>
+        <td style="color:var(--accent);font-size:11px;word-break:break-all">${esc(k.key)}</td>
+        <td>${typeBadge(k.type)}</td>
+        <td style="color:${k.ttl < 0 ? 'var(--text-muted)' : k.ttl < 300 ? 'var(--orange)' : 'var(--green)'}">${k.ttl < 0 ? '∞' : k.ttl + 's'}</td>
+      </tr>`).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="3" style="color:var(--red);text-align:center;padding:20px">Error loading keys</td></tr>';
+    if (e.message !== 'Session expired') toast('Redis key search failed', 'error');
+  }
+}
+
+function typeBadge(type) {
+  const map = { string: 'blue', hash: 'yellow', list: 'green', set: 'green', zset: 'blue', none: 'gray' };
+  return badgeHtml(type || 'none', map[type] || 'gray');
+}
+
+// ── ACTIVITY ───────────────────────────────────────────────────────────────
+async function loadActivity() {
+  document.getElementById('activity-tbody').innerHTML = '<tr class="loading-row"><td colspan="3"><span class="spinner"></span></td></tr>';
+  try {
+    const res = await apiFetch('/admin-api/activity');
+    const d = await res.json();
+    const users = d.active_last_hour || [];
+    document.getElementById('activity-count').textContent = `${users.length} user(s) active in last hour`;
+    const tbody = document.getElementById('activity-tbody');
+    if (users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-muted);text-align:center;padding:20px">No recent activity</td></tr>';
+      return;
+    }
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td style="color:var(--accent)">${esc(u.username)}</td>
+        <td style="color:var(--text-dim)">${esc(u.session_ip)}</td>
+        <td style="color:var(--text-dim)">${esc(u.last_seen)}</td>
+      </tr>`).join('');
+  } catch (e) {
+    if (e.message !== 'Session expired') toast('Activity load failed', 'error');
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function esc(str) {
+  if (str == null) return '—';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function badgeHtml(text, color) {
+  return `<span class="badge badge-${color}">${esc(text)}</span>`;
+}
+
+function fmtNum(n) {
+  if (n == null) return '—';
+  return Number(n).toLocaleString();
+}
+</script>
+</body>
+</html>

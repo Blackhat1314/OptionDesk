@@ -1,0 +1,50 @@
+# Environment — never commit credentials
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Docker volumes / data
+backend/data/
+*.db
+*.sqlite
+
+# Demo snapshot (regenerated from live data)
+backend/demo_snapshot.json
+
+# Token cache files (auto-generated)
+.dhan_token.json
+.dhan_last_fetch.txt
+backend/.dhan_token.json
+backend/.dhan_last_fetch.txt
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Logs
+*.log
+logs/

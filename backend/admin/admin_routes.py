@@ -55,6 +55,7 @@ class CreateUserRequest(BaseModel):
     username: Optional[str] = None   # auto-generated if not provided
     password: Optional[str] = None   # auto-generated if not provided
     count: int = 1                   # batch create N users
+    expiry_days: int = 30            # account expiry in days (0 = never)
 
 
 class DeleteUserRequest(BaseModel):
@@ -88,14 +89,22 @@ async def _get_all_users(r: aioredis.Redis) -> List[dict]:
             username = key.split(":", 1)[1]
             data = await r.hgetall(key)
             session = await r.hgetall(f"session:{username}")
+            expires_at = float(data.get("expires_at", 0))
+            now = time.time()
+            is_expired = expires_at > 0 and now > expires_at
+            days_left = round((expires_at - now) / 86400, 1) if expires_at > 0 else None
             users.append({
-                "username":   username,
-                "created_at": _ts_to_ist(float(data.get("created_at", 0))),
-                "created_ip": data.get("ip", "—"),
-                "online":     bool(session),
-                "session_ip": session.get("ip", "—") if session else "—",
-                "last_seen":  _ts_to_ist(float(session.get("last_seen", 0))) if session else "—",
+                "username":    username,
+                "created_at":  _ts_to_ist(float(data.get("created_at", 0))),
+                "created_ip":  data.get("ip", "—"),
+                "online":      bool(session) and not is_expired,
+                "session_ip":  session.get("ip", "—") if session else "—",
+                "last_seen":   _ts_to_ist(float(session.get("last_seen", 0))) if session else "—",
                 "last_seen_ts": float(session.get("last_seen", 0)) if session else 0,
+                "expires_at":  _ts_to_ist(expires_at) if expires_at > 0 else "Never",
+                "expires_at_ts": expires_at,
+                "days_left":   days_left,
+                "is_expired":  is_expired,
             })
         if cursor == 0:
             break
@@ -228,12 +237,18 @@ async def create_users(body: CreateUserRequest, _: str = Depends(require_admin))
             continue
 
         hashed = pwd_context.hash(password)
+        expires_at = (time.time() + body.expiry_days * 24 * 3600) if body.expiry_days > 0 else 0
         await r.hset(f"users:{username}", mapping={
             "password":   hashed,
             "created_at": str(time.time()),
             "ip":         "admin-created",
+            "expires_at": str(expires_at),
         })
-        created.append({"username": username, "password": password})
+        created.append({
+            "username":  username,
+            "password":  password,
+            "expires_in": f"{body.expiry_days} days" if body.expiry_days > 0 else "Never",
+        })
 
     return ORJSONResponse({
         "created": created,
@@ -280,6 +295,54 @@ async def reset_password(username: str, _: str = Depends(require_admin)):
         "username":     username,
         "new_password": new_password,
         "status":       "password reset, session invalidated",
+    })
+
+
+@admin_router.post("/users/{username}/extend")
+async def extend_user_expiry(
+    username: str,
+    days: int = Query(30, ge=1, le=365, description="Days to extend from today"),
+    _: str = Depends(require_admin),
+):
+    """Extend a user's account expiry by N days from today."""
+    r = await _get_redis()
+    username = username.lower()
+    if not await r.exists(f"users:{username}"):
+        raise HTTPException(404, f"User {username} not found")
+
+    new_expiry = time.time() + (days * 24 * 3600)
+    await r.hset(f"users:{username}", "expires_at", str(new_expiry))
+
+    return ORJSONResponse({
+        "username":    username,
+        "extended_by": f"{days} days",
+        "new_expiry":  _ts_to_ist(new_expiry),
+        "status":      "extended",
+    })
+
+
+@admin_router.post("/users/{username}/set-expiry")
+async def set_user_expiry(
+    username: str,
+    days: int = Query(30, ge=0, le=3650, description="Days from now (0 = never expires)"),
+    _: str = Depends(require_admin),
+):
+    """Set exact expiry for a user. days=0 means never expires."""
+    r = await _get_redis()
+    username = username.lower()
+    if not await r.exists(f"users:{username}"):
+        raise HTTPException(404, f"User {username} not found")
+
+    if days == 0:
+        await r.hset(f"users:{username}", "expires_at", "0")
+        return ORJSONResponse({"username": username, "expiry": "Never", "status": "set"})
+
+    new_expiry = time.time() + (days * 24 * 3600)
+    await r.hset(f"users:{username}", "expires_at", str(new_expiry))
+    return ORJSONResponse({
+        "username": username,
+        "expiry":   _ts_to_ist(new_expiry),
+        "status":   "set",
     })
 
 

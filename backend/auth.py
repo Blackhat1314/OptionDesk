@@ -141,6 +141,16 @@ async def require_auth(
             "last_seen": str(time.time()),
             "ip": client_ip,
         })
+
+        # Check account expiry
+        user_data = await r.hgetall(f"users:{username}")
+        expires_at = float(user_data.get("expires_at", 0))
+        if expires_at > 0 and time.time() > expires_at:
+            await r.delete(f"session:{username}")
+            raise HTTPException(
+                status_code=403,
+                detail="Your account has expired. Please contact the administrator."
+            )
     except HTTPException:
         raise
     except Exception:
@@ -194,12 +204,14 @@ async def signup(body: SignupRequest, request: Request):
     if len(body.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
-    # Store user
+    # Store user with 30-day expiry
     hashed = pwd_context.hash(body.password)
+    expires_at = time.time() + (30 * 24 * 3600)   # 30 days from now
     await r.hset(f"users:{username}", mapping={
-        "password": hashed,
+        "password":   hashed,
         "created_at": str(time.time()),
-        "ip": client_ip,
+        "ip":         client_ip,
+        "expires_at": str(expires_at),
     })
 
     # Create session
@@ -242,6 +254,14 @@ async def login(body: LoginRequest, request: Request):
     # Verify password
     if not pwd_context.verify(body.password, user_data.get("password", "")):
         raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    # Check account expiry
+    expires_at = float(user_data.get("expires_at", 0))
+    if expires_at > 0 and time.time() > expires_at:
+        raise HTTPException(
+            status_code=403,
+            detail="Your account has expired. Please contact the administrator to renew access."
+        )
 
     # Single-session: check if already logged in from a different IP
     existing_session = await r.hgetall(f"session:{username}")

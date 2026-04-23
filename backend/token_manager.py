@@ -230,9 +230,8 @@ async def get_access_token() -> str:
 
 async def run_token_refresh_loop():
     """
-    Background loop: checks token expiry every 10 minutes.
-    Refreshes automatically 30 minutes before expiry.
-    Runs forever — start as asyncio.create_task() in lifespan.
+    Background loop: fetches fresh token on startup, then checks every 10 minutes.
+    Handles TOTP timing issues with retry logic.
     """
     from config import get_settings
     s = get_settings()
@@ -243,14 +242,44 @@ async def run_token_refresh_loop():
 
     log.info("Token auto-refresh loop started")
 
-    # No startup delay — token was already fetched synchronously in lifespan
+    # ── Startup: always fetch a fresh token ──────────────────────────────────
+    # Retry up to 5 times with TOTP window awareness
+    for attempt in range(5):
+        try:
+            # Wait for a fresh TOTP window if we're near the end of one
+            remaining = 30 - int(time.time() % 30)
+            if remaining < 8:
+                log.info(f"Waiting {remaining}s for fresh TOTP window...")
+                await asyncio.sleep(remaining + 1)
 
+            token = await get_access_token()
+            _inject_token(token)
+            log.info("Startup token fetch successful")
+            break
+        except RuntimeError as e:
+            if "Invalid TOTP" in str(e) or "rate limit" in str(e).lower():
+                wait = 35 if "Invalid TOTP" in str(e) else RATE_LIMIT_SECS
+                log.warning(f"Startup token attempt {attempt+1} failed: {e} — waiting {wait}s")
+                await asyncio.sleep(wait)
+            else:
+                log.warning(f"Startup token attempt {attempt+1} failed: {e}")
+                await asyncio.sleep(10)
+        except Exception as e:
+            log.warning(f"Startup token attempt {attempt+1} error: {e}")
+            await asyncio.sleep(10)
+
+    # ── Main loop: check every 10 minutes ────────────────────────────────────
     while True:
         try:
-            await asyncio.sleep(600)   # check every 10 minutes
+            await asyncio.sleep(600)
 
             if _token_needs_refresh():
                 log.info("Token expiring soon — refreshing...")
+                # Wait for fresh TOTP window
+                remaining = 30 - int(time.time() % 30)
+                if remaining < 8:
+                    await asyncio.sleep(remaining + 1)
+
                 token = await get_access_token()
                 _inject_token(token)
                 log.info("Token refreshed successfully")

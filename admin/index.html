@@ -301,8 +301,7 @@ tr:last-child td{border-bottom:none}
             <table>
               <thead>
                 <tr>
-                  <th>Username</th><th>Created At</th><th>Created IP</th>
-                  <th>Status</th><th>Session IP</th><th>Last Seen</th><th>Actions</th>
+                  <th>Username</th><th>Created At</th><th>Created IP</th><th>Status</th><th>Last Seen</th><th>Expiry</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody id="users-tbody">
@@ -660,7 +659,7 @@ async function loadDashboard() {
 }
 // ── USERS ──────────────────────────────────────────────────────────────────
 async function loadUsers() {
-  document.getElementById('users-tbody').innerHTML = '<tr class="loading-row"><td colspan="7"><span class="spinner"></span></td></tr>';
+    document.getElementById('users-tbody').innerHTML = '<tr class="loading-row"><td colspan="7"><span class="spinner"></span></td></tr>';
   try {
     const res = await apiFetch('/admin-api/users');
     const d = await res.json();
@@ -681,25 +680,31 @@ function filterUsers() {
 function renderUsers(users) {
   const tbody = document.getElementById('users-tbody');
   if (users.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted);text-align:center;padding:20px">No users found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="color:var(--text-muted);text-align:center;padding:20px">No users found</td></tr>';
     return;
   }
-  tbody.innerHTML = users.map(u => `
-    <tr>
+  tbody.innerHTML = users.map(u => {
+    const expiryColor = u.is_expired ? 'var(--red)' : (u.days_left !== null && u.days_left < 5 ? 'var(--orange)' : 'var(--green)');
+    const expiryText = u.is_expired ? '⚠ EXPIRED' : (u.days_left !== null ? `${u.days_left}d left` : 'Never');
+    return `
+    <tr style="${u.is_expired ? 'opacity:0.6' : ''}">
       <td><span style="color:var(--accent);font-weight:600">${esc(u.username)}</span></td>
       <td style="color:var(--text-dim);font-size:11px">${esc(u.created_at)}</td>
       <td style="color:var(--text-dim);font-size:11px">${esc(u.created_ip)}</td>
       <td>${badgeHtml(u.online ? 'ONLINE' : 'OFFLINE', u.online ? 'green' : 'red')}</td>
-      <td style="color:var(--text-dim);font-size:11px">${esc(u.session_ip)}</td>
       <td style="color:var(--text-dim);font-size:11px">${esc(u.last_seen)}</td>
+      <td style="color:${expiryColor};font-size:11px;font-weight:600">${expiryText}<br><span style="color:var(--text-muted);font-size:10px">${esc(u.expires_at)}</span></td>
       <td>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
           ${u.online ? `<button class="btn btn-ghost btn-sm" onclick="kickUser('${esc(u.username)}')">KICK</button>` : ''}
+          <button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:var(--green)" onclick="extendUser('${esc(u.username)}', 30)">+30D</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--blue);border-color:var(--blue)" onclick="extendUser('${esc(u.username)}', 90)">+90D</button>
           <button class="btn btn-ghost btn-sm" onclick="resetPwd('${esc(u.username)}')">RESET PWD</button>
           <button class="btn btn-danger btn-sm" onclick="deleteUser('${esc(u.username)}')">DELETE</button>
         </div>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 async function createUsers() {
@@ -773,6 +778,19 @@ async function kickUser(username) {
     loadUsers();
   } catch (e) {
     if (e.message !== 'Session expired') toast('Kick failed', 'error');
+  }
+}
+
+async function extendUser(username, days) {
+  if (!confirm(`Extend "${username}" by ${days} days from today?`)) return;
+  try {
+    const res = await apiFetch(`/admin-api/users/${encodeURIComponent(username)}/extend?days=${days}`, { method: 'POST' });
+    const d = await res.json();
+    if (!res.ok) { toast(d.detail || 'Extend failed', 'error'); return; }
+    toast(`${username} extended by ${days} days → expires ${d.new_expiry}`, 'success');
+    loadUsers();
+  } catch (e) {
+    if (e.message !== 'Session expired') toast('Extend failed', 'error');
   }
 }
 

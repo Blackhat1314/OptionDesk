@@ -322,6 +322,8 @@ async def run_stock_scheduler():
 
         if symbols_in_db >= 10:
             # DB has data — fast recompute (no API calls)
+            # NOTE: do NOT set last_run_date here — this is just a warm-up,
+            # not the daily fetch. The 15:35 trigger must still fire today.
             await _set_status(cache, "COMPUTING",
                 f"Warming Redis from DB ({symbols_in_db} stocks)...")
             try:
@@ -330,7 +332,7 @@ async def run_stock_scheduler():
                 summary = await _recompute_from_db(cache, symbols, nifty_candles)
                 await _set_status(cache, "DONE",
                     f"Ready — {summary['buy_signals']} BUY signals from {summary['total_stocks']} stocks")
-                last_run_date = _today_ist()
+                # Do NOT set last_run_date — let 15:35 trigger run today's fetch
             except Exception as e:
                 await _set_status(cache, "ERROR", str(e))
         else:

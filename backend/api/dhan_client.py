@@ -655,16 +655,16 @@ class DhanWebSocketClient:
                                 pass
 
             except websockets.exceptions.InvalidStatusCode as e:
-                # 429 = Dhan rate-limiting WS connections — back off hard
                 status_code = getattr(e, 'status_code', None)
                 if status_code == 429:
                     from api.websocket_manager import get_market_state as _gms
                     _gms().set_sync("_ws_disconnect_reason", "HTTP 429 — rate limited by Dhan feed server")
-                    # Back off 120s minimum on 429
-                    self._reconnect_delay = max(self._reconnect_delay, 120)
+                    # Fixed 120s wait on 429 — do NOT use exponential backoff here
+                    self._reconnect_delay = 120
                 else:
                     from api.websocket_manager import get_market_state as _gms
                     _gms().set_sync("_ws_disconnect_reason", f"HTTP {status_code} — connection rejected")
+                    self._reconnect_delay = 5
             except websockets.exceptions.ConnectionClosed:
                 pass
             except Exception:

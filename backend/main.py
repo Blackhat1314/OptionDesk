@@ -100,21 +100,27 @@ async def lifespan(app: FastAPI):
 
     demo = is_demo_mode()
     if not demo:
-        # ── Token refresh for REST API ────────────────────────────────────────
-        # APP token (from generateAccessToken) works for REST API calls only.
-        # SELF token (from .env / Dhan portal) is required for WebSocket feed.
-        # We use the .env SELF token for WS and APP token for REST.
+        # ── Token: fetch fresh token BEFORE starting WS ───────────────────────
+        # Both APP and SELF tokens work for WS + REST.
+        # Fetch synchronously here so WS always starts with a valid token.
+        # token_manager background loop handles auto-refresh every ~23.5h.
+        from token_manager import get_access_token as _get_token, _inject_token
+        try:
+            _token = await _get_token()
+            _inject_token(_token)
+        except Exception:
+            # Fallback: use whatever is in .env
+            _inject_token(settings.DHAN_ACCESS_TOKEN)
+
+        # Start background token refresh loop (handles expiry + WS reconnect)
         asyncio.create_task(run_token_refresh_loop())
 
     if not demo:
         ws_client = get_ws_client()
         ws_client.add_callback(_handle_dhan_feed)
         from api.dhan_client import INDEX_SECURITY_IDS_INT, FeedRequestCode, ExchangeSegment
-        from stocks.universe import STOCK_UNIVERSE, get_security_id
 
         # Subscribe all 7 indices with QUOTE mode (RequestCode=17)
-        # Quote gives: LTP + open/high/low/close/volume/ATP per tick
-        # Dhan also auto-sends Prev Close packet (code 6) on subscribe — free prev_close!
         ws_client.subscribe(
             instruments=[
                 {"exchange_segment": ExchangeSegment.IDX_I, "security_id": str(sid)}
@@ -122,9 +128,6 @@ async def lifespan(app: FastAPI):
             ],
             request_code=FeedRequestCode.QUOTE,
         )
-        # NOTE: Stocks are NOT subscribed to WS — prices come from REST batch
-        # every 30s via run_live_price_loop() → Redis → /api/stocks/live-prices
-        # This keeps WS clean (7 instruments only) and prevents UI slowness
 
         asyncio.create_task(ws_client.connect_and_stream())
 

@@ -119,44 +119,61 @@ async def demo_health():
 
 @demo_router.get("/option-chain")
 async def demo_option_chain(symbol: str = "NIFTY", expiry: str = None):
-    chain = _s("chain_nifty")
-    if chain and chain.get("rows"):
-        return ORJSONResponse(chain)
-    # Fallback synthetic chain
+    # Always use synthetic data for demo — snapshot structure may differ from component expectations
     rows = []
     for s in STRIKES[5:-5]:
         dist = abs(s - ATM) / 100
-        call_ltp = round(max(0.5, 200 * math.exp(-0.15 * dist)), 2)
-        put_ltp  = round(max(0.5, 200 * math.exp(-0.15 * dist)), 2)
+        moneyness = s / ATM
+        # Call delta: ~0.5 at ATM, approaches 1 deep ITM, 0 far OTM
+        call_delta = round(max(0.01, min(0.99, 0.5 + (ATM - s) / (ATM * 0.15))), 3)
+        put_delta  = round(call_delta - 1, 3)
+        call_ltp   = round(max(0.5, 200 * math.exp(-0.15 * dist)), 2)
+        put_ltp    = round(max(0.5, 200 * math.exp(-0.15 * dist)), 2)
+        gamma      = round(0.002 * math.exp(-0.1 * dist), 4)
+        theta      = round(-8 * math.exp(-0.1 * dist), 2)
+        vega       = round(15 * math.exp(-0.1 * dist), 2)
+        call_iv    = round(18 + dist * 0.5, 2)
+        put_iv     = round(19 + dist * 0.6, 2)
+
         rows.append({
             "strike": s, "is_atm": s == ATM,
-            "call": {"ltp": call_ltp, "oi": int(500000 * math.exp(-0.1*dist)),
-                     "oi_change": int(10000 * math.sin(dist)), "volume": int(50000 * math.exp(-0.1*dist)),
-                     "iv": round(18 + dist * 0.5, 2), "delta": round(0.5 - dist*0.05, 3),
-                     "gamma": round(0.002 * math.exp(-0.1*dist), 4),
-                     "theta": round(-8 * math.exp(-0.1*dist), 2),
-                     "vega": round(15 * math.exp(-0.1*dist), 2),
-                     "security_id": str(40000 + s), "option_type": "CE",
-                     "trading_symbol": f"NIFTY{s}CE", "expiry": "2026-04-24",
-                     "open": call_ltp*0.95, "high": call_ltp*1.1, "low": call_ltp*0.9,
-                     "prev_close": call_ltp*0.98, "bid": call_ltp-0.5, "ask": call_ltp+0.5},
-            "put":  {"ltp": put_ltp, "oi": int(600000 * math.exp(-0.1*dist)),
-                     "oi_change": int(-8000 * math.sin(dist)), "volume": int(45000 * math.exp(-0.1*dist)),
-                     "iv": round(19 + dist * 0.6, 2), "delta": round(-0.5 + dist*0.05, 3),
-                     "gamma": round(0.002 * math.exp(-0.1*dist), 4),
-                     "theta": round(-8 * math.exp(-0.1*dist), 2),
-                     "vega": round(15 * math.exp(-0.1*dist), 2),
-                     "security_id": str(50000 + s), "option_type": "PE",
-                     "trading_symbol": f"NIFTY{s}PE", "expiry": "2026-04-24",
-                     "open": put_ltp*0.95, "high": put_ltp*1.1, "low": put_ltp*0.9,
-                     "prev_close": put_ltp*0.98, "bid": put_ltp-0.5, "ask": put_ltp+0.5},
-            "pcr_oi": 1.2, "pcr_volume": 0.9,
+            "call": {
+                "ltp": call_ltp, "oi": int(500000 * math.exp(-0.1*dist)),
+                "oi_change": int(10000 * math.sin(dist)),
+                "volume": int(50000 * math.exp(-0.1*dist)),
+                "iv": call_iv,
+                "delta": call_delta, "gamma": gamma, "theta": theta, "vega": vega,
+                "security_id": str(40000 + s), "option_type": "CE",
+                "trading_symbol": f"NIFTY{s}CE", "expiry": "2026-04-24",
+                "open": round(call_ltp*0.95, 2), "high": round(call_ltp*1.1, 2),
+                "low": round(call_ltp*0.9, 2), "prev_close": round(call_ltp*0.98, 2),
+                "bid": round(call_ltp-0.5, 2), "ask": round(call_ltp+0.5, 2),
+                "top_bid_price": round(call_ltp-0.5, 2), "top_ask_price": round(call_ltp+0.5, 2),
+                "top_bid_quantity": 150, "top_ask_quantity": 200,
+            },
+            "put": {
+                "ltp": put_ltp, "oi": int(600000 * math.exp(-0.1*dist)),
+                "oi_change": int(-8000 * math.sin(dist)),
+                "volume": int(45000 * math.exp(-0.1*dist)),
+                "iv": put_iv,
+                "delta": put_delta, "gamma": gamma, "theta": theta, "vega": vega,
+                "security_id": str(50000 + s), "option_type": "PE",
+                "trading_symbol": f"NIFTY{s}PE", "expiry": "2026-04-24",
+                "open": round(put_ltp*0.95, 2), "high": round(put_ltp*1.1, 2),
+                "low": round(put_ltp*0.9, 2), "prev_close": round(put_ltp*0.98, 2),
+                "bid": round(put_ltp-0.5, 2), "ask": round(put_ltp+0.5, 2),
+                "top_bid_price": round(put_ltp-0.5, 2), "top_ask_price": round(put_ltp+0.5, 2),
+                "top_bid_quantity": 180, "top_ask_quantity": 220,
+            },
+            "pcr_oi": round(600000 / max(500000, 1), 3),
+            "pcr_volume": round(45000 / max(50000, 1), 3),
         })
     return ORJSONResponse({
         "symbol": "NIFTY", "expiry": "2026-04-24",
         "spot_price": SPOT, "atm_strike": ATM,
         "futures_price": round(SPOT + 45, 2),
-        "rows": rows, "expiries": ["2026-04-24", "2026-05-01", "2026-05-29"],
+        "rows": rows,
+        "expiries": ["2026-04-24", "2026-05-01", "2026-05-29"],
     })
 
 

@@ -659,8 +659,9 @@ class DhanWebSocketClient:
                 if status_code == 429:
                     from api.websocket_manager import get_market_state as _gms
                     _gms().set_sync("_ws_disconnect_reason", "HTTP 429 — rate limited by Dhan feed server")
-                    # Fixed 120s wait on 429 — do NOT use exponential backoff here
-                    self._reconnect_delay = 120
+                    # Wait full 10 minutes on 429 — do NOT retry sooner
+                    # Each retry resets Dhan's rate limit timer, making it worse
+                    self._reconnect_delay = 600
                 else:
                     from api.websocket_manager import get_market_state as _gms
                     _gms().set_sync("_ws_disconnect_reason", f"HTTP {status_code} — connection rejected")

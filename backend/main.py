@@ -49,6 +49,7 @@ from api.livetv_routes import livetv_router
 from api.guide_routes import guide_router
 from api.screener_routes import screener_router
 from api.demo_routes import demo_router
+from api.ml_routes import ml_router
 from stocks.routes import stocks_router
 from stocks.scheduler import run_stock_scheduler
 from stocks.live_prices import run_live_price_loop
@@ -58,6 +59,7 @@ from features.gex      import record_exposure_snapshot
 from features.oi_flow  import ingest_chain_for_oi
 from features.vwap     import push_vwap_tick, get_vwap_engine
 from features.volatility import get_vol_surface
+from features.ml_signals import ingest_chain_for_ml, run_ml_inference, should_run_inference, update_signals
 from services.alert_engine import get_alert_engine
 from auth import auth_router, require_auth, optional_auth
 
@@ -232,6 +234,8 @@ app.include_router(screener_router, prefix="/api")
 app.include_router(stocks_router, prefix="/api")
 # Mount demo routes (public — no auth, serves frozen snapshot data)
 app.include_router(demo_router, prefix="/api")
+# Mount ML signal routes (requires auth)
+app.include_router(ml_router, prefix="/api")
 # Mount admin routes (separate auth, separate prefix)
 from admin.admin_auth import admin_auth_router
 from admin.admin_routes import admin_router as _admin_router
@@ -615,6 +619,22 @@ async def _periodic_option_chain_refresh():
             state.set_sync("exposure_prev:NIFTY", exposure_dict)
             ingest_chain_for_oi("NIFTY", chain_dict.get("rows", []), spot)
             record_intelligence_snapshot("NIFTY", exposure_dict, iv_dict, chain_dict)
+
+            # ── ML signals — feed candle buffer every cycle, infer every 15min ──
+            try:
+                ingest_chain_for_ml(chain_dict, spot)
+                if should_run_inference():
+                    ml_sigs = run_ml_inference(chain_dict, spot)
+                    update_signals(ml_sigs)
+                    if ml_sigs:
+                        asyncio.create_task(manager.broadcast({
+                            "type":      "ml_signals",
+                            "symbol":    "NIFTY",
+                            "data":      ml_sigs,
+                            "timestamp": time.time(),
+                        }))
+            except Exception:
+                pass
 
             atm_iv = summary_dict.get("atm_iv", 0.0)
             if atm_iv > 0:

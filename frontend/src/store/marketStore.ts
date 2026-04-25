@@ -6,6 +6,7 @@ import type {
   MarketSummary,
   StrategyLeg,
   TabId,
+  MlSignal,
 } from '../types';
 
 // All supported symbols
@@ -63,6 +64,10 @@ interface MarketStore {
 
   // Tick flashes
   tickFlashes: TickFlash;
+
+  // ML signals — per symbol
+  mlSignals: Record<string, MlSignal[]>;
+  setMlSignals: (symbol: string, signals: MlSignal[]) => void;
 
   // UI Filters
   strikeRange: number;
@@ -153,6 +158,7 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
 
   strategyLegs: [],
   tickFlashes:  {},
+  mlSignals:    {},
   strikeRange:  10,
   showITM:      true,
   showOTM:      true,
@@ -315,6 +321,11 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
   updateStockLtp: (symbol, ltp) =>
     set((state) => ({
       stockLtps: { ...state.stockLtps, [symbol]: ltp },
+    })),
+
+  setMlSignals: (symbol, signals) =>
+    set((state) => ({
+      mlSignals: { ...state.mlSignals, [symbol]: signals },
     })),
 
   setPrevClose: (symbol, prevClose) => {

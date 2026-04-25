@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useMarketStore } from '../store/marketStore';
 import { tokenStore } from '../utils/api';
-import type { WSMessage, OptionChainResponse, GreeksExposureResponse, IVAnalyticsResponse, MarketSummary } from '../types';
+import type { WSMessage, OptionChainResponse, GreeksExposureResponse, IVAnalyticsResponse, MarketSummary, MlSignal } from '../types';
 
 // Auto-detect protocol: wss:// for HTTPS (ngrok/production), ws:// for HTTP (localhost)
 const _wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
@@ -196,6 +196,13 @@ export function useWebSocket() {
             localStorage.setItem('last_alert', JSON.stringify(msg.data));
             window.dispatchEvent(new StorageEvent('storage', { key: 'last_alert' }));
           } catch {}
+          break;
+        }
+
+        case 'ml_signals': {
+          if (msg.data && msg.symbol) {
+            useMarketStore.getState().setMlSignals(msg.symbol, msg.data as MlSignal[]);
+          }
           break;
         }
 

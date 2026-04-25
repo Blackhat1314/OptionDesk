@@ -172,6 +172,18 @@ export interface StrategyAnalysis {
   net_vega: number;
 }
 
+// ─── ML Signals ──────────────────────────────────────────────────────────────
+
+export interface MlSignal {
+  strike:     number;
+  type:       'CALL' | 'PUT';
+  direction:  'UP' | 'DOWN';
+  confidence: number;
+  prob_up:    number;
+  atm_offset: number;
+  ts:         number;
+}
+
 // ─── WebSocket Messages ───────────────────────────────────────────────────────
 
 export type WSMessageType =

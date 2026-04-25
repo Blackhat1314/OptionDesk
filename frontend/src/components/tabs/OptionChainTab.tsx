@@ -7,12 +7,12 @@ import {
 } from 'recharts';
 import { useMarketStore } from '../../store/marketStore';
 import { fmt, getOIBarWidth, getITMClass } from '../../utils/format';
-import type { OptionChainRow } from '../../types';
+import type { OptionChainRow, MlSignal } from '../../types';
 
 const ROW_HEIGHT = 28;
 
 export const OptionChainTab: React.FC = () => {
-  const { chain, strikeRange, setStrikeRange } = useMarketStore();
+  const { chain, strikeRange, setStrikeRange, activeSymbol, mlSignals } = useMarketStore();
 
   const filteredRows = useMemo(() => {
     if (!chain) return [];
@@ -92,7 +92,7 @@ export const OptionChainTab: React.FC = () => {
                 width={width}
                 itemCount={filteredRows.length}
                 itemSize={ROW_HEIGHT}
-                itemData={{ rows: filteredRows, maxCallOI, maxPutOI, spot: chain.spot_price }}
+                itemData={{ rows: filteredRows, maxCallOI, maxPutOI, spot: chain.spot_price, mlSignals: mlSignals[activeSymbol] ?? [] }}
               >
                 {ChainRow}
               </List>
@@ -151,18 +151,23 @@ interface RowData {
   maxCallOI: number;
   maxPutOI: number;
   spot: number;
+  mlSignals: MlSignal[];
 }
 
 const ChainRow: React.FC<{ index: number; style: React.CSSProperties; data: RowData }> = ({
   index, style, data,
 }) => {
-  const { rows, maxCallOI, maxPutOI, spot } = data;
+  const { rows, maxCallOI, maxPutOI, spot, mlSignals } = data;
   const row = rows[index];
   if (!row) return null;
 
   const { call, put, strike, is_atm } = row;
   const isCallITM = strike <= spot;
   const isPutITM = strike >= spot;
+
+  // Find ML signals for this strike
+  const callSig = mlSignals.find(s => s.strike === strike && s.type === 'CALL');
+  const putSig  = mlSignals.find(s => s.strike === strike && s.type === 'PUT');
 
   const rowBg = is_atm
     ? 'bg-accent-yellow/8 border-b border-accent-yellow/30'
@@ -181,7 +186,7 @@ const ChainRow: React.FC<{ index: number; style: React.CSSProperties; data: RowD
       <Cell value={fmt.compact(call.volume)} className="text-text-secondary" />
       <Cell value={fmt.iv(call.iv)} className="text-accent-cyan" />
       <Cell value={call.greeks.delta.toFixed(3)} className="text-text-secondary" />
-      <LTPCell value={call.ltp} securityId={call.security_id} />
+      <LTPCell value={call.ltp} securityId={call.security_id} mlSignal={callSig} />
 
       {/* STRIKE */}
       <div className={`text-center px-1 font-bold text-sm ${is_atm ? 'text-accent-yellow' : 'text-text-primary'}`}>
@@ -191,7 +196,7 @@ const ChainRow: React.FC<{ index: number; style: React.CSSProperties; data: RowD
       </div>
 
       {/* PUT side */}
-      <LTPCell value={put.ltp} securityId={put.security_id} />
+      <LTPCell value={put.ltp} securityId={put.security_id} mlSignal={putSig} />
       <Cell value={put.greeks.delta.toFixed(3)} className="text-text-secondary" />
       <Cell value={fmt.iv(put.iv)} className="text-accent-cyan" />
       <Cell value={fmt.compact(put.volume)} className="text-text-secondary" />
@@ -205,12 +210,24 @@ const Cell: React.FC<{ value: string; className?: string }> = ({ value, classNam
   <div className={`px-1 truncate tabular-nums ${className}`}>{value}</div>
 );
 
-const LTPCell: React.FC<{ value: number; securityId: string }> = ({ value, securityId }) => {
+const LTPCell: React.FC<{ value: number; securityId: string; mlSignal?: MlSignal }> = ({ value, securityId, mlSignal }) => {
   const flash = useMarketStore((s) => s.tickFlashes[securityId]);
   const flashClass = flash === 'up' ? 'bg-market-up/25 text-market-up' : flash === 'down' ? 'bg-market-down/25 text-market-down' : 'text-text-primary';
   return (
-    <div className={`px-1 tabular-nums font-bold transition-colors duration-200 ${flashClass}`}>
+    <div className={`px-1 tabular-nums font-bold transition-colors duration-200 flex items-center gap-0.5 ${flashClass}`}>
       {fmt.price(value)}
+      {mlSignal && (
+        <span
+          title={`ML: ${mlSignal.direction} ${(mlSignal.confidence * 100).toFixed(0)}% conf`}
+          className={`text-2xs font-bold px-0.5 rounded leading-none ${
+            mlSignal.direction === 'UP'
+              ? 'text-market-up bg-market-up/20'
+              : 'text-market-down bg-market-down/20'
+          }`}
+        >
+          {mlSignal.direction === 'UP' ? '↑' : '↓'}{(mlSignal.confidence * 100).toFixed(0)}
+        </span>
+      )}
     </div>
   );
 };

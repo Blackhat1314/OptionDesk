@@ -30,7 +30,7 @@ import logging
 log = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
-MODEL_DIR            = "/app/data/ml_model"
+MODEL_DIR            = "/app/ml_model"
 CONFIDENCE_THRESHOLD = 0.65
 ATM_RANGE            = 2       # only predict for ATM ±2 strikes
 CANDLE_5M_SECS       = 300     # 5 minutes in seconds

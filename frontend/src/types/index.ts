@@ -193,6 +193,7 @@ export type WSMessageType =
   | 'market_summary'
   | 'tick'
   | 'alert'
+  | 'ml_signals'
   | 'option_chain_snapshot'
   | 'exposure_snapshot'
   | 'iv_snapshot'

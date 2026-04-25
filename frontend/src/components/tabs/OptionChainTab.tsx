@@ -14,6 +14,22 @@ const ROW_HEIGHT = 28;
 export const OptionChainTab: React.FC = () => {
   const { chain, strikeRange, setStrikeRange, activeSymbol, mlSignals } = useMarketStore();
 
+  // Check if market is open (9:15 - 15:30 IST, Mon-Fri)
+  const isMarketOpen = useMemo(() => {
+    const now = new Date();
+    const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const day = ist.getDay(); // 0=Sun, 6=Sat
+    const mins = ist.getHours() * 60 + ist.getMinutes();
+    return day >= 1 && day <= 5 && mins >= 555 && mins <= 930; // 9:15=555, 15:30=930
+  }, []);
+
+  // Get top ML signal for ATM strike
+  const topMlSignal = useMemo(() => {
+    if (!isMarketOpen) return null;
+    const sigs = mlSignals[activeSymbol] ?? [];
+    return sigs.length > 0 ? sigs[0] : null;
+  }, [mlSignals, activeSymbol, isMarketOpen]);
+
   const filteredRows = useMemo(() => {
     if (!chain) return [];
     const atm = chain.atm_strike;
@@ -73,6 +89,29 @@ export const OptionChainTab: React.FC = () => {
               {n}
             </button>
           ))}
+
+          {/* ML Prediction — shown in controls bar */}
+          <div className="flex items-center gap-1.5 px-2 py-0.5 border border-border-primary bg-bg-tertiary rounded-sm">
+            <span className="text-2xs text-text-muted font-mono">ML</span>
+            {!isMarketOpen ? (
+              <span className="text-2xs font-mono text-text-muted">0.00%</span>
+            ) : topMlSignal ? (
+              <>
+                <span className={`text-2xs font-bold font-mono ${
+                  topMlSignal.direction === 'UP' ? 'text-market-up' : 'text-market-down'
+                }`}>
+                  {topMlSignal.direction === 'UP' ? '↑' : '↓'}
+                  {(topMlSignal.confidence * 100).toFixed(0)}%
+                </span>
+                <span className="text-2xs text-text-muted font-mono">
+                  {topMlSignal.strike} {topMlSignal.type}
+                </span>
+              </>
+            ) : (
+              <span className="text-2xs font-mono text-text-muted">—</span>
+            )}
+          </div>
+
           <div className="ml-auto flex items-center gap-3 text-2xs font-mono text-text-muted">
             <span className="text-chart-call">■ CALL</span>
             <span className="text-chart-put">■ PUT</span>

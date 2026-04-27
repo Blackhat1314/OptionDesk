@@ -583,7 +583,8 @@ def run_ml_inference(chain_dict: Dict, spot: float) -> List[Dict]:
         put_iv  = float(row.get("put",  {}).get("iv", 0) or 0)
 
         for opt_type in ["CALL", "PUT"]:
-            # Try candle-based features first
+            # Try candle-based features only — no snapshot fallback
+            # Snapshot fallback gives biased predictions (all zeros = model defaults to DOWN)
             fv = _build_feature_vector(
                 strike=strike, opt_type=opt_type, spot=spot, atm_strike=atm,
                 global_pcr=global_pcr, iv_percentile=iv_percentile,
@@ -591,18 +592,8 @@ def run_ml_inference(chain_dict: Dict, spot: float) -> List[Dict]:
                 call_iv=call_iv, put_iv=put_iv, ts=ts,
             )
 
-            # Fall back to snapshot-based features if candles not ready
             if fv is None:
-                fv = _build_snapshot_features(
-                    row=row, opt_type=opt_type, strike=strike, spot=spot,
-                    atm_strike=atm, atm_offset_steps=atm_offset_steps,
-                    global_pcr=global_pcr, iv_percentile=iv_percentile,
-                    oi_concentration=oi_concentration,
-                    call_iv=call_iv, put_iv=put_iv, ts=ts,
-                )
-
-            if fv is None:
-                continue
+                continue  # not enough candle history yet
 
             try:
                 x = np.array([[fv.get(f, 0.0) for f in _feat_cols]], dtype=np.float32)
@@ -619,15 +610,15 @@ def run_ml_inference(chain_dict: Dict, spot: float) -> List[Dict]:
             confidence = prob if direction == "UP" else (1 - prob)
 
             signals.append({
-                "strike":     strike,
-                "type":       opt_type,
-                "direction":  direction,
-                "confidence": round(float(confidence), 4),
-                "prob_up":    round(float(prob), 4),
-                "atm_offset": atm_offset_steps,
-                "ts":         ts,
-                "strong":     confidence >= CONFIDENCE_THRESHOLD,
-                "candle_based": fv is not None and len(_buffers.get((strike, opt_type), {}).get("15m", CandleBuffer(900)).get_closed()) >= 2,
+                "strike":       strike,
+                "type":         opt_type,
+                "direction":    direction,
+                "confidence":   round(float(confidence), 4),
+                "prob_up":      round(float(prob), 4),
+                "atm_offset":   atm_offset_steps,
+                "ts":           ts,
+                "strong":       confidence >= CONFIDENCE_THRESHOLD,
+                "candle_based": True,
             })
 
     signals.sort(key=lambda x: x["confidence"], reverse=True)

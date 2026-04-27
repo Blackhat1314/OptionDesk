@@ -54,9 +54,9 @@ async def test():
 
     if not sigs:
         print('No signals — checking why...')
-        # Check one strike manually
         from features.ml_signals import _build_feature_vector, _feat_cols, _scaler, _xgb_model, _lgb_model, _weights
         import numpy as np
+        import xgboost as xgb
         strike = atm
         opt_type = 'CALL'
         row = next((r for r in rows if r.get('strike') == strike), None)
@@ -74,10 +74,16 @@ async def test():
                 print(f'Feature vector built: {len(fv)} features')
                 x = np.array([[fv.get(f, 0.0) for f in _feat_cols]], dtype=np.float32)
                 x_scaled = _scaler.transform(x)
-                p_xgb = _xgb_model.predict_proba(x_scaled)[0][1]
-                p_lgb = _lgb_model.predict_proba(x_scaled)[0][1]
+                # Use Booster.predict for XGBoost
+                dmat  = xgb.DMatrix(x_scaled)
+                p_xgb = float(_xgb_model.predict(dmat)[0])
+                p_lgb = float(_lgb_model.predict_proba(x_scaled)[0][1])
                 prob  = _weights['xgb'] * p_xgb + _weights['lgb'] * p_lgb
                 print(f'Raw prob: {prob:.4f} (threshold: 0.65)')
                 print(f'Direction: {"UP" if prob >= 0.5 else "DOWN"}, Confidence: {max(prob, 1-prob)*100:.1f}%')
+                if max(prob, 1-prob) < 0.65:
+                    print('Below confidence threshold — no signal fired (expected)')
+                else:
+                    print('Should have fired a signal — check run_ml_inference logic')
 
 asyncio.run(test())

@@ -454,11 +454,80 @@ def ingest_chain_for_ml(chain_dict: Dict, spot: float):
             buf["60m"].push(price, volume, oi, iv, ts)
 
 
+def _build_snapshot_features(
+    row: Dict, opt_type: str, strike: int, spot: float, atm_strike: int,
+    atm_offset_steps: int, global_pcr: float, iv_percentile: float,
+    oi_concentration: float, call_iv: float, put_iv: float, ts: float,
+) -> Dict[str, float]:
+    """
+    Build features from a single snapshot when candle history is insufficient.
+    Uses zero for all change/momentum features.
+    """
+    opt = row.get("call" if opt_type == "CALL" else "put", {})
+    price = float(opt.get("ltp", 0) or 0)
+    if price <= 0:
+        return None
+
+    moneyness = strike / spot if spot > 0 else 1.0
+    distance_to_spot = abs(strike - spot)
+    atm_zone = 1 if abs(atm_offset_steps) <= 1 else (2 if abs(atm_offset_steps) <= 3 else 3)
+    iv_spread = call_iv - put_iv if opt_type == "CALL" else put_iv - call_iv
+    put_call_iv_ratio = put_iv / call_iv if call_iv > 0 else 1.0
+    atm_distance_norm = distance_to_spot / spot if spot > 0 else 0.0
+
+    import pytz
+    from datetime import datetime
+    ist = pytz.timezone("Asia/Kolkata")
+    now_ist = datetime.fromtimestamp(ts, tz=ist)
+    market_open_secs  = 9 * 3600 + 15 * 60
+    market_close_secs = 15 * 3600 + 30 * 60
+    market_dur        = market_close_secs - market_open_secs
+    now_secs          = now_ist.hour * 3600 + now_ist.minute * 60 + now_ist.second
+    time_of_day       = max(0.0, min(1.0, (now_secs - market_open_secs) / market_dur))
+    candle_hour       = float(now_ist.hour)
+    session           = 1.0 if time_of_day < 0.16 else (2.0 if time_of_day < 0.60 else 3.0)
+    hour_sin          = math.sin(2 * math.pi * candle_hour / 24)
+    hour_cos          = math.cos(2 * math.pi * candle_hour / 24)
+
+    iv_val = float(opt.get("iv", 0) or 0)
+    vega_proxy  = iv_val * math.sqrt(1 - time_of_day + 0.01)
+    gamma_proxy = math.exp(-0.5 * (atm_offset_steps ** 2) / 4.0)
+    theta_proxy = time_of_day * iv_val / 100.0
+
+    # All change/momentum features = 0 (no history)
+    return {
+        "atm_offset": float(atm_offset_steps), "moneyness": float(moneyness),
+        "distance_to_spot": float(distance_to_spot), "atm_zone": float(atm_zone),
+        "oi_change": 0.0, "iv_change": 0.0, "buildup_type": 0.0, "oi_momentum": 0.0,
+        "oi_concentration": float(oi_concentration), "global_pcr": float(global_pcr),
+        "iv_percentile": float(iv_percentile), "price_change_pct": 0.0,
+        "volume_oi_ratio": 0.0, "atm_pressure": 0.0, "oi_skew_change": 0.0,
+        "oi_rank": 1.0, "iv_rank": 1.0, "realized_vol": 0.0,
+        "time_of_day": float(time_of_day), "candle_hour": float(candle_hour),
+        "session": float(session), "iv_spread": float(iv_spread),
+        "put_call_iv_ratio": float(put_call_iv_ratio), "oi_velocity": 0.0,
+        "price_acceleration": 0.0, "volume_surge": 1.0,
+        "atm_distance_norm": float(atm_distance_norm), "iv_zscore": 0.0, "oi_zscore": 0.0,
+        "hour_sin": float(hour_sin), "hour_cos": float(hour_cos),
+        "vega_proxy": float(vega_proxy), "gamma_proxy": float(gamma_proxy),
+        "theta_proxy": float(theta_proxy),
+        # 60m context — all zeros
+        "oi_change_60m": 0.0, "iv_change_60m": 0.0, "buildup_type_60m": 0.0,
+        "oi_momentum_60m": 0.0, "global_pcr_60m": float(global_pcr),
+        "iv_percentile_60m": float(iv_percentile), "oi_concentration_60m": float(oi_concentration),
+        "atm_pressure_60m": 0.0, "oi_skew_change_60m": 0.0, "realized_vol_60m": 0.0,
+        "iv_spread_60m": float(iv_spread), "put_call_iv_ratio_60m": float(put_call_iv_ratio),
+        "oi_velocity_60m": 0.0, "volume_surge_60m": 1.0, "iv_zscore_60m": 0.0,
+        # 5m context — all zeros
+        "price_change_pct_5m": 0.0, "oi_change_5m": 0.0, "iv_change_5m": 0.0,
+        "volume_oi_ratio_5m": 0.0, "oi_momentum_5m": 0.0,
+    }
+
+
 def run_ml_inference(chain_dict: Dict, spot: float) -> List[Dict]:
     """
     Run ML inference on current candle buffers.
-    Returns list of signals for ATM ±2 strikes with confidence >= threshold.
-    Called every 15min from the background loop.
+    Falls back to single-snapshot features if candle history is insufficient.
     """
     if not _load_model():
         return []
@@ -477,21 +546,19 @@ def run_ml_inference(chain_dict: Dict, spot: float) -> List[Dict]:
     total_oi      = total_call_oi + total_put_oi
     global_pcr    = total_put_oi / max(total_call_oi, 1)
 
-    # IV percentile from chain summary
     all_ivs = []
     for r in rows:
         for side in ["call", "put"]:
             iv = float(r.get(side, {}).get("iv", 0) or 0)
             if iv > 0:
                 all_ivs.append(iv)
-    iv_percentile = 0.5  # default
+    iv_percentile = 0.5
     if all_ivs:
         atm_row = next((r for r in rows if r.get("strike") == atm), None)
         if atm_row:
             atm_iv = float(atm_row.get("call", {}).get("iv", 0) or 0)
             iv_percentile = sum(1 for iv in all_ivs if iv <= atm_iv) / len(all_ivs)
 
-    # OI rank per strike (for oi_rank feature)
     oi_by_strike = {r.get("strike"): r.get("call", {}).get("oi", 0) + r.get("put", {}).get("oi", 0)
                     for r in rows}
     sorted_oi = sorted(oi_by_strike.values(), reverse=True)
@@ -504,37 +571,42 @@ def run_ml_inference(chain_dict: Dict, spot: float) -> List[Dict]:
         if not strike:
             continue
 
-        # Only ATM ±2
         atm_offset_steps = (strike - atm) // 50
         if abs(atm_offset_steps) > ATM_RANGE:
             continue
 
-        # OI concentration for this strike
         strike_oi = oi_by_strike.get(strike, 0)
         oi_concentration = strike_oi / max(total_oi, 1)
-
-        # OI rank
         oi_rank = (sorted_oi.index(strike_oi) + 1) if strike_oi in sorted_oi else len(sorted_oi)
 
-        # Call/Put IV at this strike
         call_iv = float(row.get("call", {}).get("iv", 0) or 0)
         put_iv  = float(row.get("put",  {}).get("iv", 0) or 0)
 
         for opt_type in ["CALL", "PUT"]:
+            # Try candle-based features first
             fv = _build_feature_vector(
                 strike=strike, opt_type=opt_type, spot=spot, atm_strike=atm,
                 global_pcr=global_pcr, iv_percentile=iv_percentile,
                 oi_concentration=oi_concentration,
                 call_iv=call_iv, put_iv=put_iv, ts=ts,
             )
+
+            # Fall back to snapshot-based features if candles not ready
+            if fv is None:
+                fv = _build_snapshot_features(
+                    row=row, opt_type=opt_type, strike=strike, spot=spot,
+                    atm_strike=atm, atm_offset_steps=atm_offset_steps,
+                    global_pcr=global_pcr, iv_percentile=iv_percentile,
+                    oi_concentration=oi_concentration,
+                    call_iv=call_iv, put_iv=put_iv, ts=ts,
+                )
+
             if fv is None:
                 continue
 
-            # Build feature array in exact model order
             try:
                 x = np.array([[fv.get(f, 0.0) for f in _feat_cols]], dtype=np.float32)
                 x_scaled = _scaler.transform(x)
-                # XGBoost Booster.predict() returns probability of class 1 directly
                 import xgboost as xgb
                 dmat  = xgb.DMatrix(x_scaled)
                 p_xgb = float(_xgb_model.predict(dmat)[0])
@@ -543,10 +615,7 @@ def run_ml_inference(chain_dict: Dict, spot: float) -> List[Dict]:
             except Exception:
                 continue
 
-            if prob < CONFIDENCE_THRESHOLD and prob > (1 - CONFIDENCE_THRESHOLD):
-                pass  # below threshold but still include with lower confidence
-
-            direction = "UP" if prob >= 0.5 else "DOWN"
+            direction  = "UP" if prob >= 0.5 else "DOWN"
             confidence = prob if direction == "UP" else (1 - prob)
 
             signals.append({
@@ -560,7 +629,6 @@ def run_ml_inference(chain_dict: Dict, spot: float) -> List[Dict]:
                 "strong":     confidence >= CONFIDENCE_THRESHOLD,
             })
 
-    # Sort by confidence descending
     signals.sort(key=lambda x: x["confidence"], reverse=True)
     return signals
 

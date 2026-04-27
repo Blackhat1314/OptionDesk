@@ -261,7 +261,7 @@ const LTPCell: React.FC<{ value: number; securityId: string; mlSignal?: MlSignal
       {fmt.price(value)}
       {mlSignal && (
         <span
-          title={`ML: ${mlSignal.direction} ${(mlSignal.confidence * 100).toFixed(0)}% conf${mlSignal.strong ? ' ★ HIGH' : ''}`}
+          title={`ML: ${mlSignal.direction} ${(mlSignal.confidence * 100).toFixed(0)}% conf${mlSignal.strong ? ' ★ HIGH' : ''}${!mlSignal.candle_based ? ' (snapshot)' : ''}`}
           className={`text-2xs font-bold px-0.5 rounded leading-none ${
             mlSignal.direction === 'UP'
               ? mlSignal.strong
@@ -272,7 +272,7 @@ const LTPCell: React.FC<{ value: number; securityId: string; mlSignal?: MlSignal
                 : 'text-market-down/50 bg-market-down/10'
           }`}
         >
-          {mlSignal.direction === 'UP' ? '↑' : '↓'}{(mlSignal.confidence * 100).toFixed(0)}
+          {mlSignal.candle_based === false ? '~' : (mlSignal.direction === 'UP' ? '↑' : '↓')}{(mlSignal.confidence * 100).toFixed(0)}
         </span>
       )}
     </div>

@@ -627,6 +627,7 @@ def run_ml_inference(chain_dict: Dict, spot: float) -> List[Dict]:
                 "atm_offset": atm_offset_steps,
                 "ts":         ts,
                 "strong":     confidence >= CONFIDENCE_THRESHOLD,
+                "candle_based": fv is not None and len(_buffers.get((strike, opt_type), {}).get("15m", CandleBuffer(900)).get_closed()) >= 2,
             })
 
     signals.sort(key=lambda x: x["confidence"], reverse=True)

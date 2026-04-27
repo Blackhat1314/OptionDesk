@@ -175,14 +175,15 @@ export interface StrategyAnalysis {
 // ─── ML Signals ──────────────────────────────────────────────────────────────
 
 export interface MlSignal {
-  strike:     number;
-  type:       'CALL' | 'PUT';
-  direction:  'UP' | 'DOWN';
-  confidence: number;
-  prob_up:    number;
-  atm_offset: number;
-  ts:         number;
-  strong:     boolean;
+  strike:       number;
+  type:         'CALL' | 'PUT';
+  direction:    'UP' | 'DOWN';
+  confidence:   number;
+  prob_up:      number;
+  atm_offset:   number;
+  ts:           number;
+  strong:       boolean;
+  candle_based?: boolean;
 }
 
 // ─── WebSocket Messages ───────────────────────────────────────────────────────

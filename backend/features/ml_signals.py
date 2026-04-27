@@ -68,8 +68,11 @@ def _load_model() -> bool:
 
         _scaler    = joblib.load(model_path / "scaler.pkl")
         _lgb_model = joblib.load(model_path / "lgb_model.pkl")
-        _xgb_model = xgb.XGBClassifier()
+
+        # Load XGBoost as Booster (not XGBClassifier) — avoids n_classes_ issue
+        _xgb_model = xgb.Booster()
         _xgb_model.load_model(str(model_path / "xgb_model.json"))
+
         _feat_cols = json.loads((model_path / "feature_cols.json").read_text())
 
         if (model_path / "model_weights.json").exists():
@@ -519,8 +522,11 @@ def run_ml_inference(chain_dict: Dict, spot: float) -> List[Dict]:
             try:
                 x = np.array([[fv.get(f, 0.0) for f in _feat_cols]], dtype=np.float32)
                 x_scaled = _scaler.transform(x)
-                p_xgb = _xgb_model.predict_proba(x_scaled)[0][1]
-                p_lgb = _lgb_model.predict_proba(x_scaled)[0][1]
+                # XGBoost Booster.predict() returns probability of class 1 directly
+                import xgboost as xgb
+                dmat  = xgb.DMatrix(x_scaled)
+                p_xgb = float(_xgb_model.predict(dmat)[0])
+                p_lgb = float(_lgb_model.predict_proba(x_scaled)[0][1])
                 prob  = _weights["xgb"] * p_xgb + _weights["lgb"] * p_lgb
             except Exception:
                 continue

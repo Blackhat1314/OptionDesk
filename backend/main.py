@@ -623,6 +623,11 @@ async def _periodic_option_chain_refresh():
             # ── ML signals — feed candle buffer every cycle, infer every 15min ──
             try:
                 ingest_chain_for_ml(chain_dict, spot)
+                # Track buffer size in Redis for debugging
+                from features.ml_signals import _buffers as _ml_bufs
+                import json as _j
+                loop.run_in_executor(None, _redis_set_sync,
+                    "ml:debug", _j.dumps({"buffers": len(_ml_bufs), "cycle": _cycle, "rows": len(chain_dict.get("rows",[]))}), 60)
                 if should_run_inference():
                     ml_sigs = run_ml_inference(chain_dict, spot)
                     update_signals(ml_sigs)
@@ -633,8 +638,8 @@ async def _periodic_option_chain_refresh():
                             "data":      ml_sigs,
                             "timestamp": time.time(),
                         }))
-            except Exception:
-                pass
+            except Exception as _ml_e:
+                loop.run_in_executor(None, _redis_set_sync, "ml:error", str(_ml_e)[:200], 300)
 
             atm_iv = summary_dict.get("atm_iv", 0.0)
             if atm_iv > 0:

@@ -182,6 +182,7 @@ export interface MlSignal {
   prob_up:    number;
   atm_offset: number;
   ts:         number;
+  strong:     boolean;
 }
 
 // ─── WebSocket Messages ───────────────────────────────────────────────────────

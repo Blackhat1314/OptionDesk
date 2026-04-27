@@ -532,13 +532,10 @@ def run_ml_inference(chain_dict: Dict, spot: float) -> List[Dict]:
                 continue
 
             if prob < CONFIDENCE_THRESHOLD and prob > (1 - CONFIDENCE_THRESHOLD):
-                continue  # below confidence threshold in both directions
+                pass  # below threshold but still include with lower confidence
 
             direction = "UP" if prob >= 0.5 else "DOWN"
             confidence = prob if direction == "UP" else (1 - prob)
-
-            if confidence < CONFIDENCE_THRESHOLD:
-                continue
 
             signals.append({
                 "strike":     strike,
@@ -548,6 +545,7 @@ def run_ml_inference(chain_dict: Dict, spot: float) -> List[Dict]:
                 "prob_up":    round(float(prob), 4),
                 "atm_offset": atm_offset_steps,
                 "ts":         ts,
+                "strong":     confidence >= CONFIDENCE_THRESHOLD,
             })
 
     # Sort by confidence descending

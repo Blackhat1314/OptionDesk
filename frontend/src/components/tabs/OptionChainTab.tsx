@@ -23,11 +23,12 @@ export const OptionChainTab: React.FC = () => {
     return day >= 1 && day <= 5 && mins >= 555 && mins <= 930; // 9:15=555, 15:30=930
   }, []);
 
-  // Get top ML signal for ATM strike
+  // Get top ML signal for ATM strike (show regardless of threshold)
   const topMlSignal = useMemo(() => {
     if (!isMarketOpen) return null;
     const sigs = mlSignals[activeSymbol] ?? [];
-    return sigs.length > 0 ? sigs[0] : null;
+    // Prefer strong signals, fall back to any signal
+    return sigs.find(s => s.strong) ?? (sigs.length > 0 ? sigs[0] : null);
   }, [mlSignals, activeSymbol, isMarketOpen]);
 
   const filteredRows = useMemo(() => {
@@ -98,10 +99,13 @@ export const OptionChainTab: React.FC = () => {
             ) : topMlSignal ? (
               <>
                 <span className={`text-2xs font-bold font-mono ${
-                  topMlSignal.direction === 'UP' ? 'text-market-up' : 'text-market-down'
+                  topMlSignal.direction === 'UP'
+                    ? topMlSignal.strong ? 'text-market-up' : 'text-market-up/60'
+                    : topMlSignal.strong ? 'text-market-down' : 'text-market-down/60'
                 }`}>
                   {topMlSignal.direction === 'UP' ? '↑' : '↓'}
                   {(topMlSignal.confidence * 100).toFixed(0)}%
+                  {topMlSignal.strong && <span className="text-accent-yellow ml-0.5">★</span>}
                 </span>
                 <span className="text-2xs text-text-muted font-mono">
                   {topMlSignal.strike} {topMlSignal.type}
@@ -257,11 +261,15 @@ const LTPCell: React.FC<{ value: number; securityId: string; mlSignal?: MlSignal
       {fmt.price(value)}
       {mlSignal && (
         <span
-          title={`ML: ${mlSignal.direction} ${(mlSignal.confidence * 100).toFixed(0)}% conf`}
+          title={`ML: ${mlSignal.direction} ${(mlSignal.confidence * 100).toFixed(0)}% conf${mlSignal.strong ? ' ★ HIGH' : ''}`}
           className={`text-2xs font-bold px-0.5 rounded leading-none ${
             mlSignal.direction === 'UP'
-              ? 'text-market-up bg-market-up/20'
-              : 'text-market-down bg-market-down/20'
+              ? mlSignal.strong
+                ? 'text-market-up bg-market-up/20'
+                : 'text-market-up/50 bg-market-up/10'
+              : mlSignal.strong
+                ? 'text-market-down bg-market-down/20'
+                : 'text-market-down/50 bg-market-down/10'
           }`}
         >
           {mlSignal.direction === 'UP' ? '↑' : '↓'}{(mlSignal.confidence * 100).toFixed(0)}

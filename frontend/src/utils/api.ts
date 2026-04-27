@@ -180,4 +180,7 @@ export const api = {
     apiFetch<any>(`/news${category && category !== 'ALL' ? `?category=${category}` : ''}${sentiment && sentiment !== 'ALL' ? `${category && category !== 'ALL' ? '&' : '?'}sentiment=${sentiment}` : ''}`),
 
   healthCheck: () => apiFetch<{ status: string; connections: number; redis: boolean; demo_mode: boolean }>('/health'),
+
+  getMlSignals: (symbol: string) =>
+    apiFetch<{ signals: any[]; model_loaded: boolean; status: string; last_run: number }>(`/ml-signals?symbol=${symbol}`),
 };

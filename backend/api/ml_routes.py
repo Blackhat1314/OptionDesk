@@ -1,18 +1,12 @@
 """
 api/ml_routes.py
 ================
-ML signal REST endpoint.
-Follows the same pattern as api/intelligence_routes.py:
-  - Check in-memory state first
-  - Return empty but valid response if not ready
-  - Never block on computation
+ML signal REST endpoint — serves from Redis cache so page refresh works.
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from fastapi.responses import ORJSONResponse
-
 from auth import require_auth
-from fastapi import Depends
 
 ml_router = APIRouter(tags=["ML Signals"])
 
@@ -22,22 +16,31 @@ async def get_ml_signals(
     symbol: str = Query("NIFTY"),
     _user: str = Depends(require_auth),
 ):
-    """
-    Returns current ML directional signals for ATM ±2 strikes.
-    Signals are computed every 15 minutes from the option chain candle buffer.
-    Only returns signals with confidence >= 0.65 (82% historical accuracy).
-    """
     from features.ml_signals import get_ml_signals as _get, is_model_available
+    from core.redis_cache import get_cache
 
     if not is_model_available():
         return ORJSONResponse({
-            "signals":      [],
-            "model_loaded": False,
-            "status":       "Model files not found. Copy model_v2/ to /app/data/ml_model/",
-            "threshold":    0.65,
-            "last_run":     0,
-            "next_run_in":  0,
+            "signals": [], "model_loaded": False,
+            "status": "Model files not found",
+            "threshold": 0.65, "last_run": 0, "next_run_in": 0,
         })
 
+    # Serve from Redis (persisted from last inference — survives page refresh)
+    cache = get_cache()
+    redis_sigs = await cache.get(f"ml:signals:{symbol}")
+    if redis_sigs:
+        data = _get()
+        return ORJSONResponse({
+            "signals":      redis_sigs,
+            "model_loaded": True,
+            "status":       "ok",
+            "symbol":       symbol,
+            "last_run":     data.get("last_run", 0),
+            "next_run_in":  data.get("next_run_in", 0),
+            "threshold":    0.65,
+        })
+
+    # Fall back to in-memory
     data = _get()
     return ORJSONResponse({**data, "symbol": symbol, "status": "ok"})

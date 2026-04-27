@@ -84,6 +84,13 @@ function AuthenticatedApp() {
     setLoading(true);
     prefetchAll().finally(() => setLoading(false));
     _prewarmIntelligence('NIFTY');
+
+    // Fetch ML signals on mount
+    api.getMlSignals('NIFTY').then(data => {
+      if (data?.signals?.length) {
+        useMarketStore.getState().setMlSignals('NIFTY', data.signals);
+      }
+    }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount — WS handles live updates after this
 

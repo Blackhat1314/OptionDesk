@@ -631,6 +631,9 @@ async def _periodic_option_chain_refresh():
                 if should_run_inference():
                     ml_sigs = run_ml_inference(chain_dict, spot)
                     update_signals(ml_sigs)
+                    # Persist to Redis so REST endpoint serves fresh data on page load
+                    loop.run_in_executor(None, _redis_set_sync,
+                        "ml:signals:NIFTY", _j.dumps(ml_sigs, default=str), 900)
                     if ml_sigs:
                         asyncio.create_task(manager.broadcast({
                             "type":      "ml_signals",

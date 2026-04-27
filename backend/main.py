@@ -103,11 +103,23 @@ async def lifespan(app: FastAPI):
     demo = is_demo_mode()
     if not demo:
         # ── Token: fetch fresh token BEFORE starting WS ───────────────────────
-        # Both APP and SELF tokens work for WS + REST.
-        # Fetch synchronously here so WS always starts with a valid token.
-        # token_manager background loop handles auto-refresh every ~23.5h.
-        from token_manager import get_access_token as _get_token, _inject_token
+        # Force fresh fetch via PIN+TOTP — ignore any cached/expired tokens
+        # This ensures WS always starts with a valid token after restart
+        from token_manager import _fetch_new_token, _inject_token, get_access_token as _get_token
         try:
+            from pathlib import Path as _Path
+            # Clear stale file cache so we always get a fresh token on startup
+            _cache_file = _Path("/app/data/.dhan_token.json")
+            if _cache_file.exists():
+                try:
+                    import json as _j, datetime as _dt
+                    _cached = _j.loads(_cache_file.read_text())
+                    _expiry = _dt.datetime.fromisoformat(_cached.get("expiryTime", "2000-01-01"))
+                    if _expiry < _dt.datetime.now() + _dt.timedelta(minutes=30):
+                        _cache_file.unlink()  # expired — delete so fresh fetch happens
+                except Exception:
+                    _cache_file.unlink(missing_ok=True)
+
             _token = await _get_token()
             _inject_token(_token)
         except Exception:

@@ -263,10 +263,18 @@ def _build_feature_vector(
     c60 = buf["60m"].get_closed()
     c5  = buf["5m"].get_closed()
 
-    if len(c15) < 2:
+    # Need at least 1 closed candle to compute features
+    # Also include the current open candle as the "latest" snapshot
+    current_15m = buf["15m"]._current
+    if current_15m:
+        c15_with_current = c15 + [current_15m]
+    else:
+        c15_with_current = c15
+
+    if len(c15_with_current) < 2:
         return None
 
-    latest = c15[-1]
+    latest = c15_with_current[-1]
 
     # ── Structural features ───────────────────────────────────────────────────
     atm_offset        = (strike - atm_strike) // 50  # in strike steps
@@ -308,7 +316,7 @@ def _build_feature_vector(
     theta_proxy = time_of_day * iv_val / 100.0
 
     # ── 15min candle features ─────────────────────────────────────────────────
-    feats_15m = _candle_features(c15, prefix="")
+    feats_15m = _candle_features(c15_with_current, prefix="")
     if not feats_15m:
         return None
 
@@ -318,10 +326,10 @@ def _build_feature_vector(
 
     # Realized vol from 15m candles
     realized_vol = feats_15m.get("realized_vol", 0.0)
-    if len(c15) >= 3:
-        returns = [(c15[i]["close"] - c15[i-1]["close"]) / c15[i-1]["close"]
-                   for i in range(max(1, len(c15)-10), len(c15))
-                   if c15[i-1]["close"] > 0]
+    if len(c15_with_current) >= 3:
+        returns = [(c15_with_current[i]["close"] - c15_with_current[i-1]["close"]) / c15_with_current[i-1]["close"]
+                   for i in range(max(1, len(c15_with_current)-10), len(c15_with_current))
+                   if c15_with_current[i-1]["close"] > 0]
         realized_vol = float(np.std(returns)) if len(returns) >= 2 else 0.0
 
     # OI skew change (put OI - call OI delta — simplified)
@@ -331,10 +339,14 @@ def _build_feature_vector(
     atm_pressure = oi_concentration * feats_15m.get("volume_oi_ratio", 0.0)
 
     # ── 60min context features ────────────────────────────────────────────────
-    feats_60m = _candle_features(c60, prefix="") if len(c60) >= 2 else {}
+    c60_current = buf["60m"]._current
+    c60_full = c60 + ([c60_current] if c60_current else [])
+    feats_60m = _candle_features(c60_full, prefix="") if len(c60_full) >= 2 else {}
 
     # ── 5min context features ─────────────────────────────────────────────────
-    feats_5m = _candle_features(c5, prefix="") if len(c5) >= 2 else {}
+    c5_current = buf["5m"]._current
+    c5_full = c5 + ([c5_current] if c5_current else [])
+    feats_5m = _candle_features(c5_full, prefix="") if len(c5_full) >= 2 else {}
 
     # ── Assemble full feature dict ────────────────────────────────────────────
     fv: Dict[str, float] = {

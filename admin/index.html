@@ -186,6 +186,9 @@ tr:last-child td{border-bottom:none}
       <div class="nav-item" onclick="showSection('health')" id="nav-health">
         <span class="nav-icon">💚</span><span>Health</span>
       </div>
+      <div class="nav-item" onclick="showSection('diagnostics')" id="nav-diagnostics">
+        <span class="nav-icon">🔧</span><span>Diagnostics</span>
+      </div>
       <div class="nav-item" onclick="showSection('redis')" id="nav-redis">
         <span class="nav-icon">🗄️</span><span>Redis</span>
       </div>
@@ -420,6 +423,51 @@ tr:last-child td{border-bottom:none}
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <!-- ── DIAGNOSTICS ── -->
+      <div class="section" id="section-diagnostics">
+        <div class="section-title">🔧 Diagnostics</div>
+
+        <!-- Token Status -->
+        <div class="card">
+          <div class="card-title">Dhan API Token</div>
+          <div id="diag-token-info" style="margin-bottom:12px;font-size:12px;color:var(--text-dim)">Loading...</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="diagCheckToken()">🔍 CHECK TOKEN</button>
+            <button class="btn btn-ghost btn-sm" onclick="diagRefreshToken()">🔄 FORCE REFRESH TOKEN</button>
+          </div>
+          <div id="diag-token-result" style="margin-top:12px;font-size:12px;padding:10px;background:#1a1a1a;border-radius:3px;display:none;white-space:pre-wrap"></div>
+        </div>
+
+        <!-- WebSocket Status -->
+        <div class="card">
+          <div class="card-title">WebSocket Feed</div>
+          <div id="diag-ws-info" style="margin-bottom:12px;font-size:12px;color:var(--text-dim)">Loading...</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="diagTestWS()">🔌 TEST WS CONNECTION</button>
+            <button class="btn btn-ghost btn-sm" onclick="diagReconnectWS()">↻ FORCE RECONNECT</button>
+          </div>
+          <div id="diag-ws-result" style="margin-top:12px;font-size:12px;padding:10px;background:#1a1a1a;border-radius:3px;display:none;white-space:pre-wrap"></div>
+        </div>
+
+        <!-- ML Signals Status -->
+        <div class="card">
+          <div class="card-title">ML Signals</div>
+          <div id="diag-ml-info" style="margin-bottom:12px;font-size:12px;color:var(--text-dim)">Loading...</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="diagCheckML()">📊 CHECK ML STATUS</button>
+            <button class="btn btn-ghost btn-sm" onclick="diagForceML()">⚡ FORCE INFERENCE</button>
+          </div>
+          <div id="diag-ml-result" style="margin-top:12px;font-size:12px;padding:10px;background:#1a1a1a;border-radius:3px;display:none;white-space:pre-wrap"></div>
+        </div>
+
+        <!-- Full Health Dump -->
+        <div class="card">
+          <div class="card-title">Full System Health</div>
+          <button class="btn btn-primary btn-sm" onclick="diagFullHealth()" style="margin-bottom:12px">📋 LOAD FULL HEALTH</button>
+          <div id="diag-health-result" style="font-size:12px;padding:10px;background:#1a1a1a;border-radius:3px;display:none;white-space:pre-wrap"></div>
         </div>
       </div>
 
@@ -1031,6 +1079,100 @@ function badgeHtml(text, color) {
 function fmtNum(n) {
   if (n == null) return '—';
   return Number(n).toLocaleString();
+}
+// ── DIAGNOSTICS ────────────────────────────────────────────────────────────
+
+async function diagCheckToken() {
+  const el = document.getElementById('diag-token-result');
+  el.style.display = 'block';
+  el.textContent = 'Checking...';
+  try {
+    const d = await api('/admin-api/diagnostics/token');
+    el.style.color = d.expired ? 'var(--red)' : 'var(--green)';
+    el.textContent = JSON.stringify(d, null, 2);
+    document.getElementById('diag-token-info').textContent = d.status;
+  } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
+async function diagRefreshToken() {
+  const el = document.getElementById('diag-token-result');
+  el.style.display = 'block';
+  el.textContent = 'Refreshing token...';
+  try {
+    const d = await api('/admin-api/diagnostics/token/refresh', {method:'POST'});
+    el.style.color = d.status.includes('✅') ? 'var(--green)' : 'var(--red)';
+    el.textContent = JSON.stringify(d, null, 2);
+    toast(d.status, d.status.includes('✅') ? 'success' : 'error');
+  } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
+async function diagTestWS() {
+  const el = document.getElementById('diag-ws-result');
+  el.style.display = 'block';
+  el.textContent = 'Checking WS...';
+  try {
+    const d = await api('/admin-api/diagnostics/ws');
+    el.style.color = d.tick_count ? 'var(--green)' : 'var(--orange)';
+    el.textContent = JSON.stringify(d, null, 2);
+    document.getElementById('diag-ws-info').textContent = d.status;
+  } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
+async function diagReconnectWS() {
+  const el = document.getElementById('diag-ws-result');
+  el.style.display = 'block';
+  el.textContent = 'Reconnecting WS...';
+  try {
+    const d = await api('/admin-api/diagnostics/ws/reconnect', {method:'POST'});
+    el.style.color = d.status.includes('✅') ? 'var(--green)' : 'var(--red)';
+    el.textContent = JSON.stringify(d, null, 2);
+    toast(d.status, d.status.includes('✅') ? 'success' : 'error');
+  } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
+async function diagCheckML() {
+  const el = document.getElementById('diag-ml-result');
+  el.style.display = 'block';
+  el.textContent = 'Checking ML...';
+  try {
+    const d = await api('/admin-api/diagnostics/ml');
+    el.style.color = d.signals_in_redis > 0 ? 'var(--green)' : 'var(--orange)';
+    el.textContent = JSON.stringify(d, null, 2);
+    document.getElementById('diag-ml-info').textContent = d.status;
+  } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
+async function diagForceML() {
+  const el = document.getElementById('diag-ml-result');
+  el.style.display = 'block';
+  el.textContent = 'Running inference...';
+  try {
+    const d = await api('/admin-api/diagnostics/ml/force', {method:'POST'});
+    el.style.color = d.status.includes('✅') ? 'var(--green)' : 'var(--red)';
+    el.textContent = JSON.stringify(d, null, 2);
+    toast(d.status, d.status.includes('✅') ? 'success' : 'error');
+  } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
+async function diagFullHealth() {
+  const el = document.getElementById('diag-health-result');
+  el.style.display = 'block';
+  el.textContent = 'Loading...';
+  try {
+    const d = await api('/admin-api/health');
+    el.textContent = JSON.stringify(d, null, 2);
+  } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
+// Auto-load diagnostics when section opens
+const _origShowSection = showSection;
+function showSection(name) {
+  _origShowSection(name);
+  if (name === 'diagnostics') {
+    diagCheckToken();
+    diagTestWS();
+    diagCheckML();
+  }
 }
 </script>
 </body>

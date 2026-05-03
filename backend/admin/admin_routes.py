@@ -510,3 +510,127 @@ async def recent_activity(_: str = Depends(require_admin)):
         "active_last_hour": active,
         "count": len(active),
     })
+
+# ── Diagnostics ───────────────────────────────────────────────────────────────
+
+@admin_router.get("/diagnostics/token")
+async def diag_token(_: str = Depends(require_admin)):
+    """Check Dhan token status."""
+    import json as _j, base64 as _b64, time as _t
+    from config import get_settings as _gs
+    s = _gs()
+    token = s.DHAN_ACCESS_TOKEN
+    try:
+        parts   = token.split(".")
+        payload = _j.loads(_b64.b64decode(parts[1] + "==").decode())
+        exp     = payload.get("exp", 0)
+        tok_type = payload.get("tokenConsumerType", "?")
+        expired  = exp < _t.time()
+        mins_left = int((exp - _t.time()) / 60) if not expired else 0
+        return ORJSONResponse({
+            "token_type":  tok_type,
+            "expired":     expired,
+            "expires_at":  _ts_to_ist(exp),
+            "mins_left":   mins_left,
+            "token_len":   len(token),
+            "status":      "❌ EXPIRED" if expired else f"✅ Valid ({mins_left} min left)",
+        })
+    except Exception as e:
+        return ORJSONResponse({"error": str(e), "status": "❌ Cannot decode token"})
+
+
+@admin_router.post("/diagnostics/token/refresh")
+async def diag_refresh_token(_: str = Depends(require_admin)):
+    """Force fetch a fresh token via PIN+TOTP."""
+    try:
+        from pathlib import Path
+        Path("/app/data/.dhan_token.json").unlink(missing_ok=True)
+        Path("/app/data/.dhan_last_fetch.txt").unlink(missing_ok=True)
+        from token_manager import get_access_token, _inject_token
+        import features.ml_signals  # reset model loaded flag if needed
+        token = await get_access_token()
+        _inject_token(token)
+        return ORJSONResponse({"status": "✅ Token refreshed", "token_len": len(token)})
+    except Exception as e:
+        return ORJSONResponse({"status": f"❌ Failed: {str(e)}"})
+
+
+@admin_router.get("/diagnostics/ws")
+async def diag_ws(_: str = Depends(require_admin)):
+    """Check WebSocket feed status."""
+    from api.websocket_manager import get_market_state
+    from api.dhan_client import get_ws_client
+    state = get_market_state()
+    ws    = get_ws_client()
+    return ORJSONResponse({
+        "feed_running":    ws._running,
+        "subscriptions":   len(ws._subscriptions),
+        "nifty_ltp":       state.get_sync("ltp:13"),
+        "tick_count":      state.get_sync("_tick_count"),
+        "raw_packets":     state.get_sync("_raw_packet_count"),
+        "last_tick_ts":    _ts_to_ist(state.get_sync("_last_tick_ts") or 0),
+        "disconnect_code": state.get_sync("_ws_disconnect_code"),
+        "disconnect_reason": state.get_sync("_ws_disconnect_reason"),
+        "status": "✅ Receiving ticks" if state.get_sync("_tick_count") else "⚠️ No ticks yet",
+    })
+
+
+@admin_router.post("/diagnostics/ws/reconnect")
+async def diag_ws_reconnect(_: str = Depends(require_admin)):
+    """Force WS reconnect with fresh token."""
+    try:
+        from token_manager import _reconnect_ws, get_access_token, _inject_token
+        token = await get_access_token()
+        _inject_token(token)
+        await _reconnect_ws()
+        return ORJSONResponse({"status": "✅ WS reconnect triggered"})
+    except Exception as e:
+        return ORJSONResponse({"status": f"❌ Failed: {str(e)}"})
+
+
+@admin_router.get("/diagnostics/ml")
+async def diag_ml(_: str = Depends(require_admin)):
+    """Check ML signals status."""
+    from features.ml_signals import (
+        is_model_available, _model_loaded, _last_inference_ts,
+        _last_signals, _buffers, CONFIDENCE_THRESHOLD
+    )
+    import time as _t
+    cache = get_cache()
+    redis_sigs = await cache.get("ml:signals:NIFTY")
+    return ORJSONResponse({
+        "model_available":  is_model_available(),
+        "model_loaded":     _model_loaded,
+        "buffers":          len(_buffers),
+        "last_inference":   _ts_to_ist(_last_inference_ts) if _last_inference_ts else "Never",
+        "last_inference_ago": int(_t.time() - _last_inference_ts) if _last_inference_ts else -1,
+        "signals_in_memory": len(_last_signals),
+        "signals_in_redis":  len(redis_sigs) if redis_sigs else 0,
+        "threshold":         CONFIDENCE_THRESHOLD,
+        "top_signals":       (redis_sigs or [])[:5],
+        "status": "✅ Active" if redis_sigs else "⚠️ No signals yet",
+    })
+
+
+@admin_router.post("/diagnostics/ml/force")
+async def diag_ml_force(_: str = Depends(require_admin)):
+    """Force ML inference now."""
+    try:
+        from features.ml_signals import run_ml_inference, update_signals, _buffers
+        import features.ml_signals as ml
+        cache = get_cache()
+        chain = await cache.get("chain:NIFTY")
+        if not chain:
+            return ORJSONResponse({"status": "❌ No chain data in Redis"})
+        spot = chain.get("spot_price", 0)
+        ml._last_inference_ts = 0  # force
+        sigs = run_ml_inference(chain, spot)
+        update_signals(sigs)
+        if sigs:
+            await cache.set("ml:signals:NIFTY", sigs, ttl=900)
+        return ORJSONResponse({
+            "status": f"✅ Inference complete — {len(sigs)} signals",
+            "signals": sigs[:5],
+        })
+    except Exception as e:
+        return ORJSONResponse({"status": f"❌ Failed: {str(e)}"})

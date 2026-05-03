@@ -1199,15 +1199,23 @@ async def get_extra_indices(
 
         for sid, sym in sid_to_sym.items():
             q = seg_data.get(str(sid)) or seg_data.get(sid) or {}
-            if not q:
-                continue
-            ltp        = float(q.get("last_price") or 0)
-            net_change = float(q.get("net_change") or 0)
-            ohlc       = q.get("ohlc") or {}
+            ltp        = float(q.get("last_price") or 0) if q else 0
+            net_change = float(q.get("net_change") or 0) if q else 0
+            ohlc       = q.get("ohlc") or {} if q else {}
             prev_close = float(ohlc.get("close") or 0)
 
+            # When market is closed, ltp=0 — use prev_close as display price
+            if ltp <= 0 and prev_close > 0:
+                ltp = prev_close
+                net_change = 0.0
+
+            # Fallback to WS cached value
             if ltp <= 0:
-                continue
+                cached_ltp = state.get_sync(f"ltp:{sid}")
+                if cached_ltp and cached_ltp > 0:
+                    ltp = float(cached_ltp)
+                else:
+                    continue
 
             # Use net_change from Dhan (most accurate)
             if net_change != 0:
@@ -1233,7 +1241,14 @@ async def get_extra_indices(
         pass
 
     if results:
-        await cache.set("indices:batch", results, ttl=30)
+        # 30s TTL during market hours, 24h when closed
+        import pytz as _pytz
+        from datetime import datetime as _dt
+        _ist = _pytz.timezone("Asia/Kolkata")
+        _now = _dt.now(_ist)
+        _mins = _now.hour * 60 + _now.minute
+        _market_open = _now.weekday() < 5 and 9 * 60 + 15 <= _mins <= 15 * 60 + 30
+        await cache.set("indices:batch", results, ttl=30 if _market_open else 86400)
 
     return ORJSONResponse(results)
 

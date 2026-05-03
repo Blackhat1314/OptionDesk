@@ -1249,6 +1249,14 @@ async def get_extra_indices(
         _mins = _now.hour * 60 + _now.minute
         _market_open = _now.weekday() < 5 and 9 * 60 + 15 <= _mins <= 15 * 60 + 30
         await cache.set("indices:batch", results, ttl=30 if _market_open else 86400)
+        # Also save as "last known" with 7-day TTL — survives weekends
+        await cache.set("indices:last_known", results, ttl=7 * 86400)
+
+    # If no live results, serve last known prices (from last market session)
+    if not results:
+        last_known = await cache.get("indices:last_known")
+        if last_known:
+            return ORJSONResponse(last_known)
 
     return ORJSONResponse(results)
 

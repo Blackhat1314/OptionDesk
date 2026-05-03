@@ -1087,10 +1087,11 @@ async function diagCheckToken() {
   el.style.display = 'block';
   el.textContent = 'Checking...';
   try {
-    const d = await api('/admin-api/diagnostics/token');
+    const res = await apiFetch('/admin-api/diagnostics/token');
+    const d = await res.json();
     el.style.color = d.expired ? 'var(--red)' : 'var(--green)';
     el.textContent = JSON.stringify(d, null, 2);
-    document.getElementById('diag-token-info').textContent = d.status;
+    document.getElementById('diag-token-info').textContent = d.status || '';
   } catch(e) { el.textContent = 'Error: ' + e.message; }
 }
 
@@ -1099,10 +1100,11 @@ async function diagRefreshToken() {
   el.style.display = 'block';
   el.textContent = 'Refreshing token...';
   try {
-    const d = await api('/admin-api/diagnostics/token/refresh', {method:'POST'});
-    el.style.color = d.status.includes('✅') ? 'var(--green)' : 'var(--red)';
+    const res = await apiFetch('/admin-api/diagnostics/token/refresh', {method:'POST'});
+    const d = await res.json();
+    el.style.color = d.status && d.status.includes('✅') ? 'var(--green)' : 'var(--red)';
     el.textContent = JSON.stringify(d, null, 2);
-    toast(d.status, d.status.includes('✅') ? 'success' : 'error');
+    toast(d.status || 'Done', d.status && d.status.includes('✅') ? 'success' : 'error');
   } catch(e) { el.textContent = 'Error: ' + e.message; }
 }
 
@@ -1111,10 +1113,11 @@ async function diagTestWS() {
   el.style.display = 'block';
   el.textContent = 'Checking WS...';
   try {
-    const d = await api('/admin-api/diagnostics/ws');
+    const res = await apiFetch('/admin-api/diagnostics/ws');
+    const d = await res.json();
     el.style.color = d.tick_count ? 'var(--green)' : 'var(--orange)';
     el.textContent = JSON.stringify(d, null, 2);
-    document.getElementById('diag-ws-info').textContent = d.status;
+    document.getElementById('diag-ws-info').textContent = d.status || '';
   } catch(e) { el.textContent = 'Error: ' + e.message; }
 }
 
@@ -1123,10 +1126,11 @@ async function diagReconnectWS() {
   el.style.display = 'block';
   el.textContent = 'Reconnecting WS...';
   try {
-    const d = await api('/admin-api/diagnostics/ws/reconnect', {method:'POST'});
-    el.style.color = d.status.includes('✅') ? 'var(--green)' : 'var(--red)';
+    const res = await apiFetch('/admin-api/diagnostics/ws/reconnect', {method:'POST'});
+    const d = await res.json();
+    el.style.color = d.status && d.status.includes('✅') ? 'var(--green)' : 'var(--red)';
     el.textContent = JSON.stringify(d, null, 2);
-    toast(d.status, d.status.includes('✅') ? 'success' : 'error');
+    toast(d.status || 'Done', d.status && d.status.includes('✅') ? 'success' : 'error');
   } catch(e) { el.textContent = 'Error: ' + e.message; }
 }
 
@@ -1135,10 +1139,11 @@ async function diagCheckML() {
   el.style.display = 'block';
   el.textContent = 'Checking ML...';
   try {
-    const d = await api('/admin-api/diagnostics/ml');
+    const res = await apiFetch('/admin-api/diagnostics/ml');
+    const d = await res.json();
     el.style.color = d.signals_in_redis > 0 ? 'var(--green)' : 'var(--orange)';
     el.textContent = JSON.stringify(d, null, 2);
-    document.getElementById('diag-ml-info').textContent = d.status;
+    document.getElementById('diag-ml-info').textContent = d.status || '';
   } catch(e) { el.textContent = 'Error: ' + e.message; }
 }
 
@@ -1147,10 +1152,11 @@ async function diagForceML() {
   el.style.display = 'block';
   el.textContent = 'Running inference...';
   try {
-    const d = await api('/admin-api/diagnostics/ml/force', {method:'POST'});
-    el.style.color = d.status.includes('✅') ? 'var(--green)' : 'var(--red)';
+    const res = await apiFetch('/admin-api/diagnostics/ml/force', {method:'POST'});
+    const d = await res.json();
+    el.style.color = d.status && d.status.includes('✅') ? 'var(--green)' : 'var(--red)';
     el.textContent = JSON.stringify(d, null, 2);
-    toast(d.status, d.status.includes('✅') ? 'success' : 'error');
+    toast(d.status || 'Done', d.status && d.status.includes('✅') ? 'success' : 'error');
   } catch(e) { el.textContent = 'Error: ' + e.message; }
 }
 
@@ -1159,21 +1165,24 @@ async function diagFullHealth() {
   el.style.display = 'block';
   el.textContent = 'Loading...';
   try {
-    const d = await api('/admin-api/health');
+    const res = await apiFetch('/admin-api/health');
+    const d = await res.json();
     el.textContent = JSON.stringify(d, null, 2);
   } catch(e) { el.textContent = 'Error: ' + e.message; }
 }
 
-// Auto-load diagnostics when section opens
-const _origShowSection = showSection;
-function showSection(name) {
-  _origShowSection(name);
-  if (name === 'diagnostics') {
-    diagCheckToken();
-    diagTestWS();
-    diagCheckML();
-  }
-}
+// Auto-load diagnostics when section opens — patch into existing showSection
+const _diagOrigShow = window.showSection || showSection;
+document.addEventListener('DOMContentLoaded', () => {
+  // Patch showSection after page loads
+  const origNav = document.querySelectorAll('.nav-item');
+  origNav.forEach(item => {
+    const onclick = item.getAttribute('onclick');
+    if (onclick && onclick.includes('diagnostics')) {
+      item.setAttribute('onclick', "showSection('diagnostics'); diagCheckToken(); diagTestWS(); diagCheckML();");
+    }
+  });
+});
 </script>
 </body>
 </html>

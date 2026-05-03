@@ -177,14 +177,29 @@ async def lifespan(app: FastAPI):
         # Live stock prices during market hours (1 batch call/60s for all 226 stocks)
         asyncio.create_task(run_live_price_loop())
 
-    # Pre-warm: fetch NIFTY chain + populate prev_close for all indices
+    # Pre-warm: serve from Redis cache if available, fetch from API if not
     async def _prewarm():
-        # Fetch NIFTY chain
-        await _refresh_option_chain("NIFTY", spot_override=None)
-        # Fetch OHLC for all indices to populate prev_close (for correct day change)
+        cache = get_cache()
+        state = get_market_state()
+
+        # Check if we already have cached chain data (survives restarts with 24h TTL)
+        cached_chain = await cache.get(cache.key_chain("NIFTY"))
+        if cached_chain and cached_chain.get("rows"):
+            # Restore from Redis cache — instant, no API call needed
+            await state.set("chain:NIFTY", cached_chain)
+            exposure_cached = await cache.get(cache.key_exposure("NIFTY"))
+            iv_cached       = await cache.get(cache.key_iv("NIFTY"))
+            summary_cached  = await cache.get(cache.key_summary("NIFTY"))
+            if exposure_cached: await state.set("exposure:NIFTY", exposure_cached)
+            if iv_cached:       await state.set("iv:NIFTY", iv_cached)
+            if summary_cached:  await state.set("summary:NIFTY", summary_cached)
+        else:
+            # No cache — fetch from API (works during market hours)
+            await _refresh_option_chain("NIFTY", spot_override=None)
+
+        # Fetch OHLC for all indices to populate prev_close
         try:
             dhan = get_dhan_client()
-            state = get_market_state()
             from api.dhan_client import INDEX_SECURITY_IDS_INT
             for sym, sid in INDEX_SECURITY_IDS_INT.items():
                 try:

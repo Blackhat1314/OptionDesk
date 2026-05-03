@@ -6,11 +6,11 @@ from config import get_settings
 
 settings = get_settings()
 
-TTL_OPTION_CHAIN = 360      # 6 min — covers 5-symbol market-closed cycle (5 * 60s = 300s) + buffer
-TTL_GREEKS = 360
-TTL_IV_ANALYTICS = 360
-TTL_MARKET_SUMMARY = 360
-TTL_EXPIRIES = 600          # 10 min — expiries rarely change
+TTL_OPTION_CHAIN = 86400    # 24h — survive overnight/weekends, refreshed every 3s during market
+TTL_GREEKS = 86400
+TTL_IV_ANALYTICS = 86400
+TTL_MARKET_SUMMARY = 86400
+TTL_EXPIRIES = 86400        # 24h — expiries don't change overnight
 TTL_HISTORICAL = 3600
 TTL_SPOT = 5
 TTL_IV_HISTORY = 86400      # 24h — persist IV history across restarts

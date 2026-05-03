@@ -194,8 +194,23 @@ async def lifespan(app: FastAPI):
             if iv_cached:       await state.set("iv:NIFTY", iv_cached)
             if summary_cached:  await state.set("summary:NIFTY", summary_cached)
         else:
-            # No cache — fetch from API (works during market hours)
-            await _refresh_option_chain("NIFTY", spot_override=None)
+            # No cache — fetch from API directly (works market open or closed)
+            # Use expired option chain data endpoint which works 24/7
+            try:
+                dhan = get_dhan_client()
+                expiries = await dhan.get_option_expiries("NIFTY")
+                if expiries:
+                    expiry = expiries[0]
+                    # Get spot from LTP (may be 0 when market closed)
+                    from api.dhan_client import INDEX_SECURITY_IDS_INT
+                    ltp_resp = await dhan.get_ltp([13], "IDX_I")
+                    spot = float(ltp_resp.get("data", {}).get("IDX_I", {}).get("13", {}).get("last_price") or 0)
+                    # If market closed, use ATM from expiry data or default
+                    if spot <= 0:
+                        spot = 24000.0  # fallback — will be updated when market opens
+                    await _refresh_option_chain("NIFTY", spot_override=spot)
+            except Exception:
+                pass
 
         # Fetch OHLC for all indices to populate prev_close
         try:

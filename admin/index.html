@@ -463,6 +463,17 @@ tr:last-child td{border-bottom:none}
           <div id="diag-ml-result" style="margin-top:12px;font-size:12px;padding:10px;background:#1a1a1a;border-radius:3px;display:none;white-space:pre-wrap"></div>
         </div>
 
+        <!-- Stock Pipeline -->
+        <div class="card">
+          <div class="card-title">Stock Pipeline</div>
+          <div id="diag-pipeline-info" style="margin-bottom:12px;font-size:12px;color:var(--text-dim)">Loading...</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="diagCheckPipeline()">📈 CHECK PIPELINE</button>
+            <button class="btn btn-ghost btn-sm" onclick="diagRunPipeline()">▶ RUN PIPELINE NOW</button>
+          </div>
+          <div id="diag-pipeline-result" style="margin-top:12px;font-size:12px;padding:10px;background:#1a1a1a;border-radius:3px;display:none;white-space:pre-wrap"></div>
+        </div>
+
         <!-- Full Health Dump -->
         <div class="card">
           <div class="card-title">Full System Health</div>
@@ -1171,6 +1182,34 @@ async function diagFullHealth() {
   } catch(e) { el.textContent = 'Error: ' + e.message; }
 }
 
+async function diagCheckPipeline() {
+  const el = document.getElementById('diag-pipeline-result');
+  el.style.display = 'block';
+  el.textContent = 'Checking pipeline...';
+  try {
+    const res = await apiFetch('/admin-api/diagnostics/pipeline');
+    const d = await res.json();
+    const color = d.status === 'DONE' ? 'var(--green)' : d.status === 'ERROR' ? 'var(--red)' : d.status === 'RUNNING' || d.status === 'COMPUTING' ? 'var(--orange)' : 'var(--text-dim)';
+    el.style.color = color;
+    el.textContent = JSON.stringify(d, null, 2);
+    document.getElementById('diag-pipeline-info').textContent = `${d.status} — ${d.detail || 'No detail'} | Last run: ${d.last_run_date}`;
+  } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
+async function diagRunPipeline() {
+  if (!confirm('Run stock pipeline now? This takes 15-30 minutes and fetches data from Dhan API.')) return;
+  const el = document.getElementById('diag-pipeline-result');
+  el.style.display = 'block';
+  el.textContent = 'Starting pipeline...';
+  try {
+    const res = await apiFetch('/admin-api/diagnostics/pipeline/run', {method:'POST'});
+    const d = await res.json();
+    el.style.color = d.status.includes('✅') ? 'var(--green)' : 'var(--red)';
+    el.textContent = d.status;
+    toast(d.status, d.status.includes('✅') ? 'success' : 'error');
+  } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
 // Auto-load diagnostics when section opens — patch into existing showSection
 const _diagOrigShow = window.showSection || showSection;
 document.addEventListener('DOMContentLoaded', () => {
@@ -1179,7 +1218,7 @@ document.addEventListener('DOMContentLoaded', () => {
   origNav.forEach(item => {
     const onclick = item.getAttribute('onclick');
     if (onclick && onclick.includes('diagnostics')) {
-      item.setAttribute('onclick', "showSection('diagnostics'); diagCheckToken(); diagTestWS(); diagCheckML();");
+      item.setAttribute('onclick', "showSection('diagnostics'); diagCheckToken(); diagTestWS(); diagCheckML(); diagCheckPipeline();");
     }
   });
 });

@@ -634,3 +634,40 @@ async def diag_ml_force(_: str = Depends(require_admin)):
         })
     except Exception as e:
         return ORJSONResponse({"status": f"❌ Failed: {str(e)}"})
+
+
+@admin_router.get("/diagnostics/pipeline")
+async def diag_pipeline(_: str = Depends(require_admin)):
+    """Check stock pipeline status."""
+    import time as _t
+    cache = get_cache()
+    status  = await cache.get("stocks:pipeline:status") or {}
+    last_run = await cache.get("stocks:last_run_date")
+    from stocks.database import get_db_stats
+    db = get_db_stats()
+    updated_at = status.get("updated_at", 0)
+    return ORJSONResponse({
+        "status":        status.get("status", "IDLE"),
+        "detail":        status.get("detail", ""),
+        "last_run_date": last_run or "Never",
+        "last_run_time": _ts_to_ist(updated_at) if updated_at else "Never",
+        "total_stocks":  db.get("symbols_with_data", 0),
+        "total_candles": db.get("total_candles", 0),
+        "signals_computed": db.get("signals_computed", 0),
+        "db_size_mb":    round(__import__("os").path.getsize(db.get("db_path","")) / 1024 / 1024, 1) if __import__("os").path.exists(db.get("db_path","")) else 0,
+    })
+
+
+@admin_router.post("/diagnostics/pipeline/run")
+async def diag_run_pipeline(_: str = Depends(require_admin)):
+    """Trigger stock pipeline manually (runs in background)."""
+    import asyncio as _asyncio
+    async def _run():
+        try:
+            from stocks.scheduler import run_stock_pipeline
+            await run_stock_pipeline(force_fetch=True)
+        except Exception as e:
+            cache = get_cache()
+            await cache.set("stocks:pipeline:status", {"status": "ERROR", "detail": str(e), "updated_at": __import__("time").time()}, ttl=86400)
+    _asyncio.create_task(_run())
+    return ORJSONResponse({"status": "✅ Pipeline started in background — check status in 15-30 min"})
